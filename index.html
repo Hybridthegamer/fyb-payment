@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FYB Week — Outfit Payment Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:       #1E7C3A;
+      --green-light: #2DB54F;
+      --green-glow:  rgba(30, 124, 58, 0.18);
+      --green-border:rgba(30, 124, 58, 0.45);
+      --black:       #0B0B0B;
+      --surface:     #141414;
+      --surface-2:   #1C1C1C;
+      --border:      #242424;
+      --border-2:    #2E2E2E;
+      --text:        #F4F4F4;
+      --muted:       #7A7A7A;
+      --dim:         #444;
+      --font-d: 'Bebas Neue', sans-serif;
+      --font-b: 'DM Sans', sans-serif;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--black);
+      color: var(--text);
+      font-family: var(--font-b);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ─── SCREENS ─────────────────────────── */
+    .screen { display: none; min-height: 100vh; }
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      animation: fadeUp .35s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── SHARED HEADER ───────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-family: var(--font-d);
+      font-size: 20px;
+      letter-spacing: 2.5px;
+      color: var(--green-light);
+    }
+    .logo-sub {
+      display: inline-block;
+      font-family: var(--font-b);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: .5px;
+      margin-left: 8px;
+    }
+    .back-btn {
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-family: var(--font-b);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .back-btn:hover { border-color: var(--green); color: var(--text); }
+
+    /* ─── SCREEN 1 : GENDER ───────────────── */
+    #screen-gender {
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    #screen-gender::before {
+      content: '';
+      position: absolute;
+      top: -120px; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(30,124,58,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .g-inner { width: 100%; max-width: 740px; text-align: center; position: relative; }
+    .g-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 11px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--green-light);
+      margin-bottom: 18px;
+    }
+    .g-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-light); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+    .g-title {
+      font-family: var(--font-d);
+      font-size: clamp(44px, 9vw, 80px);
+      letter-spacing: 4px;
+      line-height: .95;
+      margin-bottom: 10px;
+    }
+    .g-sub { color: var(--muted); font-size: 14px; font-weight: 300; margin-bottom: 52px; line-height: 1.6; }
+
+    .g-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .g-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 52px 28px 40px;
+      cursor: pointer;
+      transition: transform .3s cubic-bezier(.22,1,.36,1),
+                  border-color .3s, box-shadow .3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .g-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--green-glow);
+      opacity: 0;
+      transition: opacity .3s;
+      border-radius: inherit;
+    }
+    .g-card:hover::after { opacity: 1; }
+    .g-card:hover {
+      border-color: var(--green);
+      transform: translateY(-6px);
+      box-shadow: 0 28px 56px rgba(30,124,58,.22);
+    }
+    .g-card-icon {
+      font-size: 52px;
+      line-height: 1;
+      display: block;
+      margin-bottom: 14px;
+      position: relative; z-index: 1;
+    }
+    .g-card-name {
+      font-family: var(--font-d);
+      font-size: 38px;
+      letter-spacing: 2.5px;
+      display: block;
+      margin-bottom: 10px;
+      position: relative; z-index: 1;
+    }
+    .g-card-meta {
+      font-size: 12px;
+      color: var(--green-light);
+      font-weight: 500;
+      position: relative; z-index: 1;
+    }
+    .g-footer {
+      margin-top: 36px;
+      font-size: 12px;
+      color: var(--dim);
+    }
+
+    /* ─── SCREEN 2 : ITEMS ────────────────── */
+    .items-body { flex: 1; max-width: 620px; width: 100%; margin: 0 auto; padding: 32px 24px 12px; }
+    .items-head h2 { font-family: var(--font-d); font-size: 34px; letter-spacing: 2px; }
+    .items-head p { color: var(--muted); font-size: 13px; margin-top: 5px; }
+
+    .item-list { margin-top: 24px; display: flex; flex-direction: column; gap: 9px; }
+
+    .item-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .15s;
+      user-select: none;
+    }
+    .item-card:hover { border-color: var(--border-2); }
+    .item-card:active { transform: scale(.99); }
+    .item-card.selected {
+      border-color: var(--green);
+      background: var(--green-glow);
+    }
+
+    .chk {
+      width: 22px; height: 22px; flex-shrink: 0;
+      border: 2px solid var(--border-2);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s, border-color .2s;
+    }
+    .item-card.selected .chk { background: var(--green); border-color: var(--green); }
+    .chk svg { display: none; }
+    .item-card.selected .chk svg { display: block; }
+
+    .item-info { flex: 1; min-width: 0; }
+    .item-name { font-size: 14px; font-weight: 500; }
+    .item-note { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .item-price {
+      font-family: var(--font-d);
+      font-size: 20px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      transition: color .2s;
+      flex-shrink: 0;
+    }
+    .item-card.selected .item-price { color: var(--green-light); }
+
+    /* sticky footer */
+    .items-foot {
+      position: sticky; bottom: 0;
+      background: linear-gradient(transparent, var(--black) 24px);
+      padding: 28px 24px 20px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+    }
+    .items-foot-row {
+      max-width: 620px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .tot-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); }
+    .tot-val { font-family: var(--font-d); font-size: 34px; letter-spacing: 1px; line-height: 1.1; margin-top: 2px; }
+
+    .btn-prime {
+      background: var(--green);
+      color: #fff;
+      border: none;
+      padding: 13px 28px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s, transform .15s, box-shadow .2s;
+    }
+    .btn-prime:hover { background: var(--green-light); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(30,124,58,.3); }
+    .btn-prime:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ─── SCREEN 3 : CHECKOUT ─────────────── */
+    .co-body { flex: 1; max-width: 560px; width: 100%; margin: 0 auto; padding: 32px 24px 40px; }
+    .co-title { font-family: var(--font-d); font-size: 34px; letter-spacing: 2px; margin-bottom: 4px; }
+    .co-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+
+    .summary-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 18px 20px;
+      margin-bottom: 28px;
+    }
+    .summary-hd { font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); margin-bottom: 12px; }
+    .s-row {
+      display: flex; justify-content: space-between;
+      font-size: 13px; padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .s-row:last-child { border: none; }
+    .s-row.s-total {
+      margin-top: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-2);
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .s-row.s-total span:last-child { color: var(--green-light); }
+
+    .fg { margin-bottom: 14px; }
+    .fl {
+      display: block;
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--muted); margin-bottom: 7px;
+    }
+    .fi {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 15px;
+      color: var(--text);
+      font-family: var(--font-b); font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .fi:focus { border-color: var(--green); }
+    .fi::placeholder { color: var(--dim); }
+
+    .btn-pay {
+      width: 100%;
+      background: var(--green);
+      color: #fff; border: none;
+      padding: 16px;
+      border-radius: 10px;
+      font-family: var(--font-b); font-size: 15px; font-weight: 600;
+      cursor: pointer; margin-top: 24px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .2s, transform .15s, box-shadow .2s;
+    }
+    .btn-pay:hover { background: var(--green-light); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(30,124,58,.32); }
+    .btn-pay:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ─── SCREEN 4 : RECEIPT ──────────────── */
+    #screen-receipt { justify-content: center; align-items: center; padding: 40px 20px; }
+    .rc-wrap { width: 100%; max-width: 520px; }
+
+    .rc-icon {
+      width: 60px; height: 60px;
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px;
+    }
+    .rc-title { font-family: var(--font-d); font-size: 42px; letter-spacing: 2.5px; margin-bottom: 6px; }
+    .rc-sub { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 28px; }
+
+    .rc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .rc-sec {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .rc-sec:last-child { border: none; }
+    .rc-sec-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); margin-bottom: 12px; }
+    .rc-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; padding: 4px 0;
+    }
+    .rc-row .lbl { color: var(--muted); }
+    .rc-row .val { font-weight: 500; }
+    .rc-big { font-family: var(--font-d); font-size: 30px; letter-spacing: 1px; color: var(--green-light); }
+    .rc-ref { font-size: 11px; font-family: 'Courier New', monospace; color: var(--muted); word-break: break-all; }
+
+    .rc-actions { margin-top: 20px; display: flex; gap: 10px; }
+    .btn-sec {
+      flex: 1; background: var(--surface); border: 1px solid var(--border-2);
+      color: var(--text); padding: 13px;
+      border-radius: 10px; font-family: var(--font-b); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: border-color .2s;
+      text-align: center;
+    }
+    .btn-sec:hover { border-color: var(--green); }
+
+    /* ─── MOBILE ──────────────────────────── */
+    @media (max-width: 500px) {
+      .g-cards { grid-template-columns: 1fr; }
+      .g-card  { padding: 36px 22px 30px; }
+      .topbar  { padding: 15px 16px; }
+      .items-body, .co-body { padding: 24px 16px 12px; }
+      .items-foot { padding: 20px 16px 16px; }
+    }
+
+    @media print {
+      .rc-actions, .topbar { display: none !important; }
+      body { background: white; color: black; }
+      .rc-card { border: 1px solid #ccc; }
+      .rc-row .lbl, .rc-sec-lbl { color: #555; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ SCREEN 1 : GENDER ══════════════════════════════════════════ -->
+<div class="screen active" id="screen-gender">
+  <div class="g-inner">
+    <div class="g-pill"><span class="g-dot"></span> RSU · FYB Week 2026</div>
+    <h1 class="g-title">OUTFIT<br>PAYMENT</h1>
+    <p class="g-sub">Select all items you want to pay for.<br>Nothing is compulsory — pick what applies to you.</p>
+    <div class="g-cards">
+      <div class="g-card" onclick="selectGender('male')">
+        <span class="g-card-icon">♂</span>
+        <span class="g-card-name">MALE</span>
+        <span class="g-card-meta">5 items · max ₦48,000</span>
+      </div>
+      <div class="g-card" onclick="selectGender('female')">
+        <span class="g-card-icon">♀</span>
+        <span class="g-card-name">FEMALE</span>
+        <span class="g-card-meta">5 items · max ₦37,500</span>
+      </div>
+    </div>
+    <p class="g-footer">Payments are processed securely via Paystack</p>
+  </div>
+</div>
+
+<!-- ══ SCREEN 2 : ITEMS ═══════════════════════════════════════════ -->
+<div class="screen" id="screen-items">
+  <header class="topbar">
+    <div class="logo">FYB WEEK <span class="logo-sub">Select Items</span></div>
+    <button class="back-btn" onclick="goTo('screen-gender')">← Back</button>
+  </header>
+  <div class="items-body">
+    <div class="items-head">
+      <h2 id="items-gender-label">OUTFIT</h2>
+      <p>Tap an item to select or deselect it. Only selected items will be charged.</p>
+    </div>
+    <div class="item-list" id="item-list"></div>
+  </div>
+  <div class="items-foot">
+    <div class="items-foot-row">
+      <div>
+        <div class="tot-label">Total Selected</div>
+        <div class="tot-val" id="items-total">₦0</div>
+      </div>
+      <button class="btn-prime" id="btn-proceed" onclick="proceedToCheckout()" disabled>
+        Checkout →
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCREEN 3 : CHECKOUT ════════════════════════════════════════ -->
+<div class="screen" id="screen-checkout">
+  <header class="topbar">
+    <div class="logo">FYB WEEK <span class="logo-sub">Checkout</span></div>
+    <button class="back-btn" onclick="goTo('screen-items')">← Back</button>
+  </header>
+  <div class="co-body">
+    <h2 class="co-title">YOUR DETAILS</h2>
+    <p class="co-sub">Fill in your info — this is what gets recorded alongside your payment.</p>
+
+    <div class="summary-box">
+      <div class="summary-hd">Order Summary</div>
+      <div id="order-rows"></div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Full Name</label>
+      <input class="fi" type="text" id="f-name" placeholder="e.g. Chidi Okeke" autocomplete="name" />
+    </div>
+    <div class="fg">
+      <label class="fl">Matric Number</label>
+      <input class="fi" type="text" id="f-matric" placeholder="e.g. U2019/3024001" autocomplete="off" />
+    </div>
+    <div class="fg">
+      <label class="fl">Email Address</label>
+      <input class="fi" type="email" id="f-email" placeholder="e.g. chidi@gmail.com" autocomplete="email" />
+      <span style="font-size:11px;color:var(--dim);display:block;margin-top:5px;">Paystack needs this to send your receipt</span>
+    </div>
+    <div class="fg">
+      <label class="fl">WhatsApp Number</label>
+      <input class="fi" type="tel" id="f-phone" placeholder="e.g. 08012345678" autocomplete="tel" />
+    </div>
+
+    <button class="btn-pay" id="btn-pay" onclick="initiatePayment()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="3"/>
+        <path d="M2 10h20"/>
+      </svg>
+      Pay ₦<span id="pay-label">0</span> via Paystack
+    </button>
+  </div>
+</div>
+
+<!-- ══ SCREEN 4 : RECEIPT ════════════════════════════════════════ -->
+<div class="screen" id="screen-receipt">
+  <div class="rc-wrap">
+    <div class="rc-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green-light)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <h2 class="rc-title">PAYMENT<br>CONFIRMED!</h2>
+    <p class="rc-sub">Your outfit payment has been recorded.<br>Screenshot or print this page for reference.</p>
+
+    <div class="rc-card">
+      <div class="rc-sec">
+        <div class="rc-sec-lbl">Personal Info</div>
+        <div class="rc-row"><span class="lbl">Full Name</span><span class="val" id="r-name">—</span></div>
+        <div class="rc-row"><span class="lbl">Matric No.</span><span class="val" id="r-matric">—</span></div>
+        <div class="rc-row"><span class="lbl">WhatsApp</span><span class="val" id="r-phone">—</span></div>
+        <div class="rc-row"><span class="lbl">Gender</span><span class="val" id="r-gender">—</span></div>
+      </div>
+      <div class="rc-sec">
+        <div class="rc-sec-lbl">Items Paid For</div>
+        <div id="r-items"></div>
+      </div>
+      <div class="rc-sec">
+        <div class="rc-row"><span class="lbl">Amount Paid</span><span class="rc-big" id="r-total">₦0</span></div>
+        <div class="rc-row" style="margin-top:10px;align-items:flex-start;">
+          <span class="lbl" style="flex-shrink:0;margin-right:12px;">Reference</span>
+          <span class="rc-ref" id="r-ref">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rc-actions">
+      <button class="btn-sec" onclick="window.print()">🖨&nbsp; Print</button>
+      <button class="btn-sec" onclick="startOver()">← New Payment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ══════════════════════════════════════════════════════
+  //  CONFIG — swap these two before going live
+  // ══════════════════════════════════════════════════════
+  const PAYSTACK_KEY     = 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+  const SHEETS_WEBHOOK   = 'YOUR_APPS_SCRIPT_WEBHOOK_URL_HERE';
+  // ══════════════════════════════════════════════════════
+
+  const ITEMS = {
+    male: [
+      { id: 'jacket',   name: 'Jacket',           note: 'Standard FYB jacket',       price: 12000 },
+      { id: 'senator',  name: 'Senator Fabric',    note: '3 yards @ ₦5,500/yd',       price: 16500 },
+      { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
+      { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
+      { id: 'boxing',   name: 'Boxing',            note: 'Tailoring & finishing',      price:  8000 },
+    ],
+    female: [
+      { id: 'jacket',   name: 'Jacket',            note: 'Standard FYB jacket',       price: 12000 },
+      { id: 'ankara',   name: 'Ankara Fabric',     note: '6 yards',                   price:  6000 },
+      { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
+      { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
+      { id: 'boxing',   name: 'Boxing',            note: 'Tailoring & finishing',      price:  8000 },
+    ],
+  };
+
+  let state = {
+    gender: null,
+    selected: new Set(),
+    name: '', matric: '', email: '', phone: '',
+    ref: '',
+  };
+
+  // ── Utilities ──────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const fmt = n => '₦' + n.toLocaleString('en-NG');
+  const getTotal = () =>
+    ITEMS[state.gender].reduce((sum, i) => state.selected.has(i.id) ? sum + i.price : sum, 0);
+
+  function goTo(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    $(id).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Screen 1 → 2 ──────────────────────────────────────
+  function selectGender(g) {
+    state.gender = g;
+    state.selected = new Set();
+    renderItems();
+    goTo('screen-items');
+  }
+
+  // ── Screen 2 : render + interact ──────────────────────
+  function renderItems() {
+    $('items-gender-label').textContent =
+      (state.gender === 'male' ? 'MALE' : 'FEMALE') + ' OUTFIT';
+    const list = $('item-list');
+    list.innerHTML = '';
+
+    ITEMS[state.gender].forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'item-card' + (state.selected.has(item.id) ? ' selected' : '');
+      el.onclick = () => { toggleItem(item.id); };
+      el.innerHTML = `
+        <div class="chk">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="item-info">
+          <div class="item-name">${item.name}</div>
+          ${item.note ? `<div class="item-note">${item.note}</div>` : ''}
+        </div>
+        <div class="item-price">${fmt(item.price)}</div>
+      `;
+      list.appendChild(el);
+    });
+    syncTotal();
+  }
+
+  function toggleItem(id) {
+    state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id);
+    renderItems();
+  }
+
+  function syncTotal() {
+    const t = getTotal();
+    $('items-total').textContent = fmt(t);
+    $('btn-proceed').disabled = state.selected.size === 0;
+  }
+
+  // ── Screen 2 → 3 ──────────────────────────────────────
+  function proceedToCheckout() {
+    const t = getTotal();
+    // render order summary
+    const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
+    $('order-rows').innerHTML =
+      rows.map(i => `<div class="s-row"><span>${i.name}</span><span>${fmt(i.price)}</span></div>`).join('') +
+      `<div class="s-row s-total"><span>Total</span><span>${fmt(t)}</span></div>`;
+    $('pay-label').textContent = t.toLocaleString('en-NG');
+    goTo('screen-checkout');
+  }
+
+  // ── Screen 3 : payment ────────────────────────────────
+  function initiatePayment() {
+    const name   = $('f-name').value.trim();
+    const matric = $('f-matric').value.trim();
+    const email  = $('f-email').value.trim();
+    const phone  = $('f-phone').value.trim();
+
+    if (!name)           { alert('Please enter your full name.');      return; }
+    if (!matric)         { alert('Please enter your matric number.');  return; }
+    if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+    if (!phone)          { alert('Please enter your WhatsApp number.'); return; }
+
+    state.name = name; state.matric = matric;
+    state.email = email; state.phone = phone;
+
+    const total = getTotal();
+    const ref   = 'FYB-' + Date.now();
+
+    const handler = PaystackPop.setup({
+      key:      PAYSTACK_KEY,
+      email:    email,
+      amount:   total * 100,          // kobo
+      currency: 'NGN',
+      ref:      ref,
+      metadata: {
+        custom_fields: [
+          { display_name: 'Full Name',     variable_name: 'full_name', value: name   },
+          { display_name: 'Matric Number', variable_name: 'matric',    value: matric },
+          { display_name: 'WhatsApp',      variable_name: 'whatsapp',  value: phone  },
+          { display_name: 'Gender',        variable_name: 'gender',    value: state.gender },
+        ]
+      },
+      callback: function (response) {
+        state.ref = response.reference;
+        sendToSheets(response.reference);
+        showReceipt(response.reference);
+      },
+      onClose: function () { /* user dismissed — do nothing */ }
+    });
+
+    handler.openIframe();
+  }
+
+  // ── Google Sheets webhook ─────────────────────────────
+  function sendToSheets(reference) {
+    const selectedItems = ITEMS[state.gender]
+      .filter(i => state.selected.has(i.id))
+      .map(i => i.name)
+      .join(', ');
+
+    const payload = {
+      timestamp: new Date().toLocaleString('en-NG'),
+      name:      state.name,
+      matric:    state.matric,
+      email:     state.email,
+      phone:     state.phone,
+      gender:    state.gender === 'male' ? 'Male' : 'Female',
+      items:     selectedItems,
+      total:     getTotal(),
+      reference: reference,
+    };
+
+    fetch(SHEETS_WEBHOOK, {
+      method:  'POST',
+      mode:    'no-cors',        // Apps Script doesn't return CORS headers
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    }).catch(err => console.warn('[Sheets] Log failed:', err));
+  }
+
+  // ── Screen 4 : receipt ────────────────────────────────
+  function showReceipt(reference) {
+    $('r-name').textContent   = state.name;
+    $('r-matric').textContent = state.matric;
+    $('r-phone').textContent  = state.phone;
+    $('r-gender').textContent = state.gender === 'male' ? 'Male' : 'Female';
+    $('r-total').textContent  = fmt(getTotal());
+    $('r-ref').textContent    = reference;
+
+    $('r-items').innerHTML = ITEMS[state.gender]
+      .filter(i => state.selected.has(i.id))
+      .map(i => `<div class="rc-row"><span class="lbl">${i.name}</span><span class="val">${fmt(i.price)}</span></div>`)
+      .join('');
+
+    goTo('screen-receipt');
+  }
+
+  // ── Reset ─────────────────────────────────────────────
+  function startOver() {
+    state = { gender: null, selected: new Set(), name: '', matric: '', email: '', phone: '', ref: '' };
+    ['f-name','f-matric','f-email','f-phone'].forEach(id => $(id).value = '');
+    goTo('screen-gender');
+  }
+</script>
+</body>
+</html>
