@@ -515,8 +515,8 @@
 <!-- ══ SCREEN 0 : SIGN IN ════════════════════════════════════════ -->
 <div class="screen active" id="screen-signin">
   <div class="signin-inner">
-    <div class="g-pill"><span class="g-dot"></span> RSU · FYB Week 2026</div>
-    <h1 class="g-title">FYB WEEK<br>PORTAL</h1>
+    <div class="g-pill"><span class="g-dot"></span> NACOS RSU · FYB Week 2026</div>
+    <h1 class="g-title">NACOS FYB WEEK<br>PORTAL</h1>
     <p class="g-sub" style="margin-bottom:36px;">Sign in with your Google account<br>to access the outfit payment portal.</p>
     <button class="btn-google" id="btn-google-signin" onclick="signInWithGoogle()">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
@@ -534,9 +534,9 @@
 <!-- ══ SCREEN 1 : GENDER ══════════════════════════════════════════ -->
 <div class="screen" id="screen-gender">
   <div class="g-inner">
-    <div class="g-pill"><span class="g-dot"></span> RSU · FYB Week 2026</div>
+    <div class="g-pill"><span class="g-dot"></span> NACOS RSU · FYB Week 2026</div>
     <h1 class="g-title">OUTFIT<br>PAYMENT</h1>
-    <p class="g-sub">Select all items you want to pay for.<br>Nothing is compulsory — pick what applies to you.</p>
+    <p class="g-sub">Select all items you want to pay for.<br>Nothing is compulsory — pick what applies to you (you can pay gradually i.e one item per session).</p>
     <div class="g-cards">
       <div class="g-card" onclick="selectGender('male')">
         <span class="g-card-icon">♂</span>
@@ -585,7 +585,7 @@
 <!-- ══ SCREEN 3 : CHECKOUT ════════════════════════════════════════ -->
 <div class="screen" id="screen-checkout">
   <header class="topbar">
-    <div class="logo">FYB WEEK <span class="logo-sub">Checkout</span></div>
+    <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Checkout</span></div>
     <div class="topbar-right">
       <div class="user-chip" id="user-chip-checkout"></div>
       <button class="back-btn" onclick="goTo('screen-items')">← Back</button>
@@ -606,7 +606,7 @@
     </div>
     <div class="fg">
       <label class="fl">Matric Number</label>
-      <input class="fi" type="text" id="f-matric" placeholder="e.g. U2019/3024001" autocomplete="off" />
+      <input class="fi" type="text" id="f-matric" placeholder="e.g. DE.2022/7999" autocomplete="off" />
     </div>
     <div class="fg">
       <label class="fl">Email Address</label>
@@ -631,7 +631,7 @@
 <!-- ══ SCREEN 4 : RECEIPT ════════════════════════════════════════ -->
 <div class="screen" id="screen-receipt">
   <header class="topbar">
-    <div class="logo">FYB WEEK <span class="logo-sub">Receipt</span></div>
+    <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Receipt</span></div>
     <div class="user-chip" id="user-chip-receipt"></div>
   </header>
   <div class="rc-wrap">
@@ -675,17 +675,17 @@
   // ══════════════════════════════════════════════════════
   //  FIREBASE CONFIG — replace with your real project values
   // ══════════════════════════════════════════════════════
-  const FIREBASE_API_KEY     = 'YOUR_FIREBASE_API_KEY';
-  const FIREBASE_AUTH_DOMAIN = 'YOUR_PROJECT.firebaseapp.com';
-  const FIREBASE_PROJECT_ID  = 'YOUR_FIREBASE_PROJECT_ID';
-  const FIREBASE_APP_ID      = 'YOUR_FIREBASE_APP_ID';
+  const FIREBASE_API_KEY     = 'AIzaSyBXInhdzhY8QQ6G7dAYfvtEOdzza8mwVCs';
+  const FIREBASE_AUTH_DOMAIN = 'fyb-payment.firebaseapp.com';
+  const FIREBASE_PROJECT_ID  = 'fyb-payment';
+  const FIREBASE_APP_ID      = '1:614631046833:web:9f0f1b7e17f10030c12c90';
   // ══════════════════════════════════════════════════════
 
   // ══════════════════════════════════════════════════════
   //  PAYSTACK & SHEETS CONFIG — swap these before going live
   // ══════════════════════════════════════════════════════
-  const PAYSTACK_KEY   = 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
-  const SHEETS_WEBHOOK = 'YOUR_APPS_SCRIPT_WEBHOOK_URL_HERE';
+  const PAYSTACK_KEY   = 'pk_test_df4939e96d9615037d9e4e9a27f9755f00e6d513';
+  const SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbyYVucuUzguq4pn1b179i-HQyVAn3OX7mslTXY-4VKeKwy9jaZBGMN8uF1X7yHUFqY/exec';
   // ══════════════════════════════════════════════════════
 
   // ── Firebase init ──────────────────────────────────────
