@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
   <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -85,6 +88,58 @@
       transition: border-color .2s, color .2s;
     }
     .back-btn:hover { border-color: var(--green); color: var(--text); }
+
+    /* ─── SCREEN 0 : SIGN IN ─────────────────── */
+    #screen-signin {
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    #screen-signin::before {
+      content: '';
+      position: absolute;
+      top: -120px; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(30,124,58,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .signin-inner {
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      position: relative;
+    }
+    .btn-google {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .15s, box-shadow .2s;
+      margin-top: 8px;
+      width: 100%;
+      max-width: 300px;
+    }
+    .btn-google:hover {
+      border-color: var(--green);
+      background: var(--green-glow);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(30,124,58,.18);
+    }
+    .btn-google:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .signin-footer { margin-top: 28px; font-size: 12px; color: var(--dim); }
 
     /* ─── SCREEN 1 : GENDER ───────────────── */
     #screen-gender {
@@ -213,6 +268,25 @@
       background: var(--green-glow);
     }
 
+    /* ─── PAID ITEM STATE ────────────────────── */
+    .item-card.paid {
+      opacity: 0.55;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .paid-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--green-light);
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      border-radius: 999px;
+      padding: 3px 10px;
+      letter-spacing: .5px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
     .chk {
       width: 22px; height: 22px; flex-shrink: 0;
       border: 2px solid var(--border-2);
@@ -332,8 +406,8 @@
     .btn-pay:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
 
     /* ─── SCREEN 4 : RECEIPT ──────────────── */
-    #screen-receipt { justify-content: center; align-items: center; padding: 40px 20px; }
-    .rc-wrap { width: 100%; max-width: 520px; }
+    #screen-receipt { justify-content: flex-start; align-items: stretch; padding-bottom: 40px; }
+    .rc-wrap { width: 100%; max-width: 520px; margin: 0 auto; padding: 40px 20px 0; }
 
     .rc-icon {
       width: 60px; height: 60px;
@@ -377,6 +451,47 @@
     }
     .btn-sec:hover { border-color: var(--green); }
 
+    /* ─── USER CHIP (topbar) ─────────────────── */
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .user-email {
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 130px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .signout-btn {
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-family: var(--font-b);
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .signout-btn:hover { border-color: var(--green); color: var(--text); }
+
     /* ─── MOBILE ──────────────────────────── */
     @media (max-width: 500px) {
       .g-cards { grid-template-columns: 1fr; }
@@ -384,6 +499,7 @@
       .topbar  { padding: 15px 16px; }
       .items-body, .co-body { padding: 24px 16px 12px; }
       .items-foot { padding: 20px 16px 16px; }
+      .user-email { display: none; }
     }
 
     @media print {
@@ -396,8 +512,27 @@
 </head>
 <body>
 
+<!-- ══ SCREEN 0 : SIGN IN ════════════════════════════════════════ -->
+<div class="screen active" id="screen-signin">
+  <div class="signin-inner">
+    <div class="g-pill"><span class="g-dot"></span> RSU · FYB Week 2026</div>
+    <h1 class="g-title">FYB WEEK<br>PORTAL</h1>
+    <p class="g-sub" style="margin-bottom:36px;">Sign in with your Google account<br>to access the outfit payment portal.</p>
+    <button class="btn-google" id="btn-google-signin" onclick="signInWithGoogle()">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <p class="signin-footer">Payments are processed securely via Paystack</p>
+  </div>
+</div>
+
 <!-- ══ SCREEN 1 : GENDER ══════════════════════════════════════════ -->
-<div class="screen active" id="screen-gender">
+<div class="screen" id="screen-gender">
   <div class="g-inner">
     <div class="g-pill"><span class="g-dot"></span> RSU · FYB Week 2026</div>
     <h1 class="g-title">OUTFIT<br>PAYMENT</h1>
@@ -422,7 +557,10 @@
 <div class="screen" id="screen-items">
   <header class="topbar">
     <div class="logo">FYB WEEK <span class="logo-sub">Select Items</span></div>
-    <button class="back-btn" onclick="goTo('screen-gender')">← Back</button>
+    <div class="topbar-right">
+      <div class="user-chip" id="user-chip-items"></div>
+      <button class="back-btn" onclick="goTo('screen-gender')">← Back</button>
+    </div>
   </header>
   <div class="items-body">
     <div class="items-head">
@@ -448,7 +586,10 @@
 <div class="screen" id="screen-checkout">
   <header class="topbar">
     <div class="logo">FYB WEEK <span class="logo-sub">Checkout</span></div>
-    <button class="back-btn" onclick="goTo('screen-items')">← Back</button>
+    <div class="topbar-right">
+      <div class="user-chip" id="user-chip-checkout"></div>
+      <button class="back-btn" onclick="goTo('screen-items')">← Back</button>
+    </div>
   </header>
   <div class="co-body">
     <h2 class="co-title">YOUR DETAILS</h2>
@@ -489,6 +630,10 @@
 
 <!-- ══ SCREEN 4 : RECEIPT ════════════════════════════════════════ -->
 <div class="screen" id="screen-receipt">
+  <header class="topbar">
+    <div class="logo">FYB WEEK <span class="logo-sub">Receipt</span></div>
+    <div class="user-chip" id="user-chip-receipt"></div>
+  </header>
   <div class="rc-wrap">
     <div class="rc-icon">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green-light)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
@@ -528,11 +673,130 @@
 
 <script>
   // ══════════════════════════════════════════════════════
-  //  CONFIG — swap these two before going live
+  //  FIREBASE CONFIG — replace with your real project values
   // ══════════════════════════════════════════════════════
-  const PAYSTACK_KEY     = 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
-  const SHEETS_WEBHOOK   = 'YOUR_APPS_SCRIPT_WEBHOOK_URL_HERE';
+  const FIREBASE_API_KEY     = 'YOUR_FIREBASE_API_KEY';
+  const FIREBASE_AUTH_DOMAIN = 'YOUR_PROJECT.firebaseapp.com';
+  const FIREBASE_PROJECT_ID  = 'YOUR_FIREBASE_PROJECT_ID';
+  const FIREBASE_APP_ID      = 'YOUR_FIREBASE_APP_ID';
   // ══════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════
+  //  PAYSTACK & SHEETS CONFIG — swap these before going live
+  // ══════════════════════════════════════════════════════
+  const PAYSTACK_KEY   = 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+  const SHEETS_WEBHOOK = 'YOUR_APPS_SCRIPT_WEBHOOK_URL_HERE';
+  // ══════════════════════════════════════════════════════
+
+  // ── Firebase init ──────────────────────────────────────
+  firebase.initializeApp({
+    apiKey:    FIREBASE_API_KEY,
+    authDomain: FIREBASE_AUTH_DOMAIN,
+    projectId:  FIREBASE_PROJECT_ID,
+    appId:      FIREBASE_APP_ID,
+  });
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+
+  // ── Auth state observer ────────────────────────────────
+  let _firstAuthCheck = true;
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      state.user = user;
+      updateUserChips(user);
+      // Redirect on initial page load or when returning from sign-in screen
+      const onSignIn = document.getElementById('screen-signin').classList.contains('active');
+      if (_firstAuthCheck || onSignIn) goTo('screen-gender');
+    } else {
+      state.user = null;
+      goTo('screen-signin');
+    }
+    _firstAuthCheck = false;
+  });
+
+  function signInWithGoogle() {
+    const btn = document.getElementById('btn-google-signin');
+    btn.disabled = true;
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(err => {
+      console.error('[Auth]', err);
+      alert('Sign-in failed. Please try again.');
+      btn.disabled = false;
+    });
+  }
+
+  function signOut() {
+    auth.signOut();
+  }
+
+  function updateUserChips(user) {
+    const initial = (user.displayName || user.email || '?')[0].toUpperCase();
+    const email   = user.email || '';
+    const html = `
+      <div class="user-avatar">${initial}</div>
+      <span class="user-email">${email}</span>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    `;
+    ['user-chip-items', 'user-chip-checkout', 'user-chip-receipt'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    });
+  }
+
+  // ── Firestore: load paid items ─────────────────────────
+  async function loadPaidItems() {
+    if (!state.user) { state.paidItems = new Set(); return; }
+    try {
+      const snap = await db.collection('payments').doc(state.user.uid).get();
+      state.paidItems = snap.exists ? new Set(snap.data().paidItems || []) : new Set();
+    } catch (err) {
+      console.warn('[Firestore] Load failed:', err);
+      state.paidItems = new Set();
+    }
+  }
+
+  // ── Firestore: save / update after payment ─────────────
+  async function saveToFirestore(reference) {
+    if (!state.user) return;
+    const selectedItems = ITEMS[state.gender].filter(i => state.selected.has(i.id));
+    const newPaidIds    = selectedItems.map(i => i.id);
+    const amount        = getTotal();
+    const txn = {
+      ref:   reference,
+      items: newPaidIds,
+      amount,
+      date:  new Date().toISOString(),
+    };
+    const docRef = db.collection('payments').doc(state.user.uid);
+    try {
+      const snap = await docRef.get();
+      if (snap.exists) {
+        await docRef.update({
+          name:         state.name,
+          matric:       state.matric,
+          phone:        state.phone,
+          email:        state.email,
+          gender:       state.gender,
+          paidItems:    firebase.firestore.FieldValue.arrayUnion(...newPaidIds),
+          totalPaid:    firebase.firestore.FieldValue.increment(amount),
+          transactions: firebase.firestore.FieldValue.arrayUnion(txn),
+        });
+      } else {
+        await docRef.set({
+          name:         state.name,
+          matric:       state.matric,
+          phone:        state.phone,
+          email:        state.email,
+          gender:       state.gender,
+          paidItems:    newPaidIds,
+          totalPaid:    amount,
+          transactions: [txn],
+        });
+      }
+    } catch (err) {
+      console.warn('[Firestore] Save failed:', err);
+    }
+  }
 
   const ITEMS = {
     male: [
@@ -552,8 +816,10 @@
   };
 
   let state = {
-    gender: null,
-    selected: new Set(),
+    user:      null,
+    gender:    null,
+    selected:  new Set(),
+    paidItems: new Set(),
     name: '', matric: '', email: '', phone: '',
     ref: '',
   };
@@ -571,9 +837,10 @@
   }
 
   // ── Screen 1 → 2 ──────────────────────────────────────
-  function selectGender(g) {
+  async function selectGender(g) {
     state.gender = g;
     state.selected = new Set();
+    await loadPaidItems();
     renderItems();
     goTo('screen-items');
   }
@@ -586,15 +853,20 @@
     list.innerHTML = '';
 
     ITEMS[state.gender].forEach(item => {
-      const el = document.createElement('div');
-      el.className = 'item-card' + (state.selected.has(item.id) ? ' selected' : '');
-      el.onclick = () => { toggleItem(item.id); };
+      const isPaid = state.paidItems.has(item.id);
+      const el     = document.createElement('div');
+      el.className = 'item-card' +
+        (isPaid ? ' paid' : (state.selected.has(item.id) ? ' selected' : ''));
+      if (!isPaid) el.onclick = () => toggleItem(item.id);
       el.innerHTML = `
-        <div class="chk">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        </div>
+        ${isPaid
+          ? `<span class="paid-badge">Paid ✓</span>`
+          : `<div class="chk">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>`
+        }
         <div class="item-info">
           <div class="item-name">${item.name}</div>
           ${item.note ? `<div class="item-note">${item.note}</div>` : ''}
@@ -619,8 +891,12 @@
 
   // ── Screen 2 → 3 ──────────────────────────────────────
   function proceedToCheckout() {
+    // Pre-fill from Google profile if fields are empty
+    if (state.user) {
+      if (state.user.displayName && !$('f-name').value) $('f-name').value = state.user.displayName;
+      if (state.user.email && !$('f-email').value)       $('f-email').value = state.user.email;
+    }
     const t = getTotal();
-    // render order summary
     const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
     $('order-rows').innerHTML =
       rows.map(i => `<div class="s-row"><span>${i.name}</span><span>${fmt(i.price)}</span></div>`).join('') +
@@ -636,8 +912,8 @@
     const email  = $('f-email').value.trim();
     const phone  = $('f-phone').value.trim();
 
-    if (!name)           { alert('Please enter your full name.');      return; }
-    if (!matric)         { alert('Please enter your matric number.');  return; }
+    if (!name)           { alert('Please enter your full name.');       return; }
+    if (!matric)         { alert('Please enter your matric number.');   return; }
     if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
     if (!phone)          { alert('Please enter your WhatsApp number.'); return; }
 
@@ -663,6 +939,7 @@
       },
       callback: function (response) {
         state.ref = response.reference;
+        saveToFirestore(response.reference); // async, fire-and-forget
         sendToSheets(response.reference);
         showReceipt(response.reference);
       },
@@ -718,7 +995,14 @@
 
   // ── Reset ─────────────────────────────────────────────
   function startOver() {
-    state = { gender: null, selected: new Set(), name: '', matric: '', email: '', phone: '', ref: '' };
+    const currentUser = state.user;
+    state = {
+      user:      currentUser,
+      gender:    null,
+      selected:  new Set(),
+      paidItems: new Set(),
+      name: '', matric: '', email: '', phone: '', ref: '',
+    };
     ['f-name','f-matric','f-email','f-phone'].forEach(id => $(id).value = '');
     goTo('screen-gender');
   }
