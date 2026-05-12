@@ -673,7 +673,7 @@
 
 <script>
   // ══════════════════════════════════════════════════════
-  //  FIREBASE CONFIG — replace with your real project values
+  //  FIREBASE CONFIG
   // ══════════════════════════════════════════════════════
   const FIREBASE_API_KEY     = 'AIzaSyBXInhdzhY8QQ6G7dAYfvtEOdzza8mwVCs';
   const FIREBASE_AUTH_DOMAIN = 'fyb-payment.firebaseapp.com';
@@ -682,7 +682,7 @@
   // ══════════════════════════════════════════════════════
 
   // ══════════════════════════════════════════════════════
-  //  PAYSTACK & SHEETS CONFIG — swap these before going live
+  //  PAYSTACK & SHEETS CONFIG
   // ══════════════════════════════════════════════════════
   const PAYSTACK_KEY   = 'pk_live_0065af2ad32a9cd14a7eafe26c4e30d78f35d01b';
   const SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbyYVucuUzguq4pn1b179i-HQyVAn3OX7mslTXY-4VKeKwy9jaZBGMN8uF1X7yHUFqY/exec';
@@ -704,7 +704,6 @@
     if (user) {
       state.user = user;
       updateUserChips(user);
-      // Redirect on initial page load or when returning from sign-in screen
       const onSignIn = document.getElementById('screen-signin').classList.contains('active');
       if (_firstAuthCheck || onSignIn) goTo('screen-gender');
     } else {
@@ -729,17 +728,31 @@
     auth.signOut();
   }
 
+  // [FIX: XSS — MEDIUM] Use DOM methods instead of innerHTML so a Google account
+  // with a crafted displayName/email cannot inject script via the user chip.
   function updateUserChips(user) {
     const initial = (user.displayName || user.email || '?')[0].toUpperCase();
     const email   = user.email || '';
-    const html = `
-      <div class="user-avatar">${initial}</div>
-      <span class="user-email">${email}</span>
-      <button class="signout-btn" onclick="signOut()">Sign out</button>
-    `;
+
     ['user-chip-items', 'user-chip-checkout', 'user-chip-receipt'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = html;
+      if (!el) return;
+      el.innerHTML = '';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'user-avatar';
+      avatar.textContent = initial;
+
+      const emailSpan = document.createElement('span');
+      emailSpan.className = 'user-email';
+      emailSpan.textContent = email;
+
+      const signoutBtn = document.createElement('button');
+      signoutBtn.className = 'signout-btn';
+      signoutBtn.textContent = 'Sign out';
+      signoutBtn.onclick = signOut;
+
+      el.append(avatar, emailSpan, signoutBtn);
     });
   }
 
@@ -757,10 +770,14 @@
 
   // ── Firestore: save / update after payment ─────────────
   async function saveToFirestore(reference) {
-    if (!state.user) return;
+    if (!state.user || !reference) return;
     const selectedItems = ITEMS[state.gender].filter(i => state.selected.has(i.id));
-    const newPaidIds    = selectedItems.map(i => i.id);
-    const amount        = getTotal();
+    // [FIX: guard] Refuse to write if there's nothing to record or total is zero.
+    if (selectedItems.length === 0) return;
+    const newPaidIds = selectedItems.map(i => i.id);
+    const amount     = getTotal();
+    if (amount <= 0) return;
+
     const txn = {
       ref:   reference,
       items: newPaidIds,
@@ -794,7 +811,13 @@
         });
       }
     } catch (err) {
-      console.warn('[Firestore] Save failed:', err);
+      // [FIX: silent failure — LOW] Surface the error so the user knows to keep their receipt.
+      console.error('[Firestore] Save failed:', err);
+      alert(
+        'Your payment was processed by Paystack, but we could not save your record to the database.\n\n' +
+        'Please screenshot this page and contact the FYB coordinator with your reference:\n\n' +
+        reference
+      );
     }
   }
 
@@ -804,14 +827,14 @@
       { id: 'senator',  name: 'Senator Fabric',    note: '3 yards @ ₦5,500/yd',       price: 16500 },
       { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
       { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
-      { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',      price:  8000 },
+      { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',            price:  8000 },
     ],
     female: [
       { id: 'jacket',   name: 'Jacket',            note: 'Standard FYB jacket',       price: 12000 },
       { id: 'ankara',   name: 'Ankara Fabric',     note: '6 yards',                   price:  6000 },
       { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
       { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
-      { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',      price:  8000 },
+      { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',            price:  8000 },
     ],
   };
 
@@ -827,17 +850,30 @@
   // ── Utilities ──────────────────────────────────────────
   const $ = id => document.getElementById(id);
   const fmt = n => '₦' + n.toLocaleString('en-NG');
+  // [FIX: bug] Guard against state.gender being null to avoid runtime crash.
   const getTotal = () =>
-    ITEMS[state.gender].reduce((sum, i) => state.selected.has(i.id) ? sum + i.price : sum, 0);
+    ITEMS[state.gender]
+      ? ITEMS[state.gender].reduce((sum, i) => state.selected.has(i.id) ? sum + i.price : sum, 0)
+      : 0;
+
+  // [FIX: auth bypass — CRITICAL] goTo now enforces authentication for all post-login screens.
+  // A browser-console call of goTo('screen-checkout') without being signed in
+  // will silently redirect to sign-in instead of granting access.
+  const PROTECTED_SCREENS = new Set(['screen-gender', 'screen-items', 'screen-checkout', 'screen-receipt']);
 
   function goTo(id) {
+    if (PROTECTED_SCREENS.has(id) && !state.user) {
+      id = 'screen-signin';
+    }
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     $(id).classList.add('active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // ── Screen 1 → 2 ──────────────────────────────────────
+  // [FIX: auth guard] Explicit check before trusting state.gender assignment.
   async function selectGender(g) {
+    if (!state.user) { goTo('screen-signin'); return; }
     state.gender = g;
     state.selected = new Set();
     await loadPaidItems();
@@ -890,12 +926,14 @@
   }
 
   // ── Screen 2 → 3 ──────────────────────────────────────
+  // [FIX: auth + state guards — CRITICAL]
   function proceedToCheckout() {
-    // Pre-fill from Google profile if fields are empty
-    if (state.user) {
-      if (state.user.displayName && !$('f-name').value) $('f-name').value = state.user.displayName;
-      if (state.user.email && !$('f-email').value)       $('f-email').value = state.user.email;
-    }
+    if (!state.user) { goTo('screen-signin'); return; }
+    if (!state.gender || state.selected.size === 0) return;
+
+    if (state.user.displayName && !$('f-name').value) $('f-name').value = state.user.displayName;
+    if (state.user.email && !$('f-email').value)       $('f-email').value = state.user.email;
+
     const t = getTotal();
     const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
     $('order-rows').innerHTML =
@@ -906,22 +944,84 @@
   }
 
   // ── Screen 3 : payment ────────────────────────────────
-  function initiatePayment() {
+  // Tracks whether a Paystack popup is currently open to prevent double-submission.
+  let _paymentInFlight = false;
+
+  // [FIX: auth guard + input validation + double-payment guard + payment integrity — CRITICAL]
+  async function initiatePayment() {
+    if (!state.user) { goTo('screen-signin'); return; }
+    if (_paymentInFlight) return;
+
     const name   = $('f-name').value.trim();
     const matric = $('f-matric').value.trim();
     const email  = $('f-email').value.trim();
-    const phone  = $('f-phone').value.trim();
+    // Strip whitespace from phone before validation
+    const phone  = $('f-phone').value.trim().replace(/\s/g, '');
 
-    if (!name)           { alert('Please enter your full name.');       return; }
-    if (!matric)         { alert('Please enter your matric number.');   return; }
-    if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
-    if (!phone)          { alert('Please enter your WhatsApp number.'); return; }
+    // [FIX: input validation — MEDIUM] Stronger checks replacing the previous
+    // name/matric empty-only checks and the insufficient email.includes('@') check.
+    if (!name || name.length < 2 || name.length > 100) {
+      alert('Please enter your full name (2–100 characters).'); return;
+    }
+    if (!matric || matric.length < 5 || matric.length > 30) {
+      alert('Please enter a valid matric number.'); return;
+    }
+    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRx.test(email)) {
+      alert('Please enter a valid email address.'); return;
+    }
+    // Accepts: 08XXXXXXXXX, 07XXXXXXXXX, 09XXXXXXXXX, +2348XXXXXXXXX, 2348XXXXXXXXX
+    const phoneRx = /^(\+?234|0)[789]\d{9}$/;
+    if (!phoneRx.test(phone)) {
+      alert('Please enter a valid Nigerian phone number (e.g. 08012345678).'); return;
+    }
 
     state.name = name; state.matric = matric;
     state.email = email; state.phone = phone;
 
+    // [FIX: race condition / double payment — MEDIUM] Re-fetch paid items from
+    // Firestore right before opening Paystack to catch concurrent payments in
+    // other tabs that completed since the items screen was loaded.
+    _paymentInFlight = true;
+    const btn = $('btn-pay');
+    btn.disabled = true;
+
+    await loadPaidItems();
+
+    const conflicts = ITEMS[state.gender].filter(i =>
+      state.selected.has(i.id) && state.paidItems.has(i.id)
+    );
+    if (conflicts.length > 0) {
+      _paymentInFlight = false;
+      btn.disabled = false;
+      alert(
+        'These items are already paid: ' + conflicts.map(i => i.name).join(', ') +
+        '.\n\nPlease go back and reselect your remaining items.'
+      );
+      renderItems();
+      goTo('screen-items');
+      return;
+    }
+
     const total = getTotal();
-    const ref   = 'FYB-' + Date.now();
+    if (total <= 0) {
+      _paymentInFlight = false;
+      btn.disabled = false;
+      return;
+    }
+
+    const ref = 'FYB-' + Date.now();
+
+    // [FIX: payment integrity — CRITICAL] The post-payment flow (Firestore write,
+    // Sheets log, receipt screen) is locked inside a closure. callbackConsumed
+    // is a one-time flag that can only be set to true by the Paystack callback,
+    // not by any external console call. The reference check ensures the response
+    // carries the exact ref we sent to Paystack — a mismatch aborts the flow.
+    // NOTE: this is the best achievable client-only protection. True verification
+    // requires a server: add a Firebase Cloud Function or Cloudflare Worker that
+    // calls GET https://api.paystack.co/transaction/verify/:ref with your secret
+    // key and writes to Firestore only after a confirmed status is returned.
+    let callbackConsumed = false;
 
     const handler = PaystackPop.setup({
       key:      PAYSTACK_KEY,
@@ -938,18 +1038,35 @@
         ]
       },
       callback: function (response) {
+        if (callbackConsumed) return;
+        callbackConsumed = true;
+        _paymentInFlight = false;
+        btn.disabled = false;
+        if (!response.reference || response.reference !== ref) {
+          console.error('[Security] Paystack reference mismatch — aborting post-payment flow');
+          return;
+        }
         state.ref = response.reference;
-        saveToFirestore(response.reference); // async, fire-and-forget
+        saveToFirestore(response.reference);
         sendToSheets(response.reference);
         showReceipt(response.reference);
       },
-      onClose: function () { /* user dismissed — do nothing */ }
+      // [FIX: broken state on popup close — LOW] Reset flags so the Pay button
+      // becomes usable again if the user dismisses the popup without paying.
+      onClose: function () {
+        _paymentInFlight = false;
+        btn.disabled = false;
+      }
     });
 
     handler.openIframe();
   }
 
   // ── Google Sheets webhook ─────────────────────────────
+  // NOTE: This URL is visible in page source. Anyone can POST arbitrary data to it
+  // directly. The risk is data pollution in the sheet, not financial loss.
+  // Mitigation: in the Apps Script, cross-check references against your Paystack
+  // dashboard via the Paystack API before accepting a row.
   function sendToSheets(reference) {
     const selectedItems = ITEMS[state.gender]
       .filter(i => state.selected.has(i.id))
