@@ -508,6 +508,116 @@
       .rc-card { border: 1px solid #ccc; }
       .rc-row .lbl, .rc-sec-lbl { color: #555; }
     }
+
+    /* ─── DYNAMIC ITEM CONTROLS ──────────────── */
+    .item-card--dynamic {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+    }
+    .item-card-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .item-ctrl {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height .3s ease, opacity .25s ease, padding-top .3s ease;
+      padding-top: 0;
+      pointer-events: none;
+    }
+    .item-card.selected .item-ctrl {
+      max-height: 90px;
+      opacity: 1;
+      padding-top: 12px;
+      pointer-events: auto;
+    }
+
+    /* Senator slider */
+    .senator-lbl {
+      display: block;
+      font-size: 12px;
+      color: var(--green-light);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    input[type="range"].senator-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"].senator-slider:focus-visible {
+      outline: 2px solid #2DB54F;
+      outline-offset: 6px;
+      border-radius: 2px;
+    }
+    input[type="range"].senator-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #2DB54F;
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(45,181,79,.15);
+      transition: box-shadow .15s;
+    }
+    input[type="range"].senator-slider:hover::-webkit-slider-thumb,
+    input[type="range"].senator-slider:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 6px rgba(45,181,79,.3);
+    }
+    input[type="range"].senator-slider::-moz-range-thumb {
+      border: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #2DB54F;
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(45,181,79,.15);
+    }
+    input[type="range"].senator-slider::-moz-range-track {
+      height: 4px;
+      background: #2E2E2E;
+      border-radius: 999px;
+    }
+    input[type="range"].senator-slider::-moz-range-progress {
+      height: 4px;
+      background: #2DB54F;
+      border-radius: 999px;
+    }
+
+    /* Ankara toggle */
+    .ankara-ctrl {
+      display: flex;
+      gap: 8px;
+    }
+    .ankara-opt {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(30,124,58,.45);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: var(--font-b);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .18s, border-color .18s, color .18s;
+      text-align: center;
+    }
+    .ankara-opt.active {
+      background: #2DB54F;
+      border-color: #2DB54F;
+      color: #fff;
+    }
+    .ankara-opt:not(.active):hover { border-color: #2DB54F; }
+    .ankara-opt:focus-visible {
+      outline: 2px solid #2DB54F;
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body>
@@ -779,10 +889,11 @@
     if (amount <= 0) return;
 
     const txn = {
-      ref:   reference,
-      items: newPaidIds,
+      ref:        reference,
+      items:      newPaidIds,
+      itemLabels: selectedItems.map(i => getItemDisplayLabel(i)),
       amount,
-      date:  new Date().toISOString(),
+      date:       new Date().toISOString(),
     };
     const docRef = db.collection('payments').doc(state.user.uid);
     try {
@@ -824,27 +935,41 @@
   const ITEMS = {
     male: [
       { id: 'jacket',   name: 'Jacket',           note: 'Standard FYB jacket',       price: 12000 },
-      { id: 'senator',  name: 'Senator Fabric',    note: '3 yards @ ₦5,500/yd',       price: 16500 },
+      { id: 'senator',  name: 'Senator Fabric',    note: '',                           price: 16500 },
       { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
       { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
       { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',            price:  8000 },
     ],
     female: [
       { id: 'jacket',   name: 'Jacket',            note: 'Standard FYB jacket',       price: 12000 },
-      { id: 'ankara',   name: 'Ankara Fabric',     note: '6 yards',                   price:  6000 },
+      { id: 'ankara',   name: 'Ankara Fabric',     note: '',                           price:  6000 },
       { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
       { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
       { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',            price:  8000 },
     ],
   };
 
+  function getItemEffectivePrice(item) {
+    if (item.id === 'senator') return (state.senatorYards || 3) * 5500;
+    if (item.id === 'ankara')  return state.ankaraOption === '3yds' ? 3000 : 6000;
+    return item.price;
+  }
+
+  function getItemDisplayLabel(item) {
+    if (item.id === 'senator') return `Senator Fabric (${state.senatorYards || 3} yds)`;
+    if (item.id === 'ankara')  return `Ankara Fabric (${state.ankaraOption === '3yds' ? 3 : 6} yds)`;
+    return item.name;
+  }
+
   let state = {
-    user:      null,
-    gender:    null,
-    selected:  new Set(),
-    paidItems: new Set(),
+    user:          null,
+    gender:        null,
+    selected:      new Set(),
+    paidItems:     new Set(),
     name: '', matric: '', email: '', phone: '',
     ref: '',
+    senatorYards:  3,
+    ankaraOption:  '6yds',
   };
 
   // ── Utilities ──────────────────────────────────────────
@@ -853,7 +978,7 @@
   // [FIX: bug] Guard against state.gender being null to avoid runtime crash.
   const getTotal = () =>
     ITEMS[state.gender]
-      ? ITEMS[state.gender].reduce((sum, i) => state.selected.has(i.id) ? sum + i.price : sum, 0)
+      ? ITEMS[state.gender].reduce((sum, i) => state.selected.has(i.id) ? sum + getItemEffectivePrice(i) : sum, 0)
       : 0;
 
   // [FIX: auth bypass — CRITICAL] goTo now enforces authentication for all post-login screens.
@@ -874,8 +999,10 @@
   // [FIX: auth guard] Explicit check before trusting state.gender assignment.
   async function selectGender(g) {
     if (!state.user) { goTo('screen-signin'); return; }
-    state.gender = g;
-    state.selected = new Set();
+    state.gender      = g;
+    state.selected    = new Set();
+    state.senatorYards = 3;
+    state.ankaraOption = '6yds';
     await loadPaidItems();
     renderItems();
     goTo('screen-items');
@@ -889,34 +1016,125 @@
     list.innerHTML = '';
 
     ITEMS[state.gender].forEach(item => {
-      const isPaid = state.paidItems.has(item.id);
-      const el     = document.createElement('div');
-      el.className = 'item-card' +
-        (isPaid ? ' paid' : (state.selected.has(item.id) ? ' selected' : ''));
+      const isPaid     = state.paidItems.has(item.id);
+      const isSelected = state.selected.has(item.id);
+      const isDynamic  = item.id === 'senator' || item.id === 'ankara';
+      const el         = document.createElement('div');
+      el.className     = 'item-card' +
+        (isDynamic ? ' item-card--dynamic' : '') +
+        (isPaid ? ' paid' : (isSelected ? ' selected' : ''));
       if (!isPaid) el.onclick = () => toggleItem(item.id);
-      el.innerHTML = `
-        ${isPaid
-          ? `<span class="paid-badge">Paid ✓</span>`
-          : `<div class="chk">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </div>`
+
+      const checkHtml = isPaid
+        ? `<span class="paid-badge">Paid ✓</span>`
+        : `<div class="chk">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>`;
+
+      if (isDynamic) {
+        const effPrice = getItemEffectivePrice(item);
+        let ctrlHtml = '';
+        if (!isPaid) {
+          if (item.id === 'senator') {
+            const yds = state.senatorYards;
+            ctrlHtml = `<div class="item-ctrl senator-ctrl" id="senator-ctrl">
+              <span class="senator-lbl" id="senator-lbl">${yds} yds × ₦5,500 = ${fmt(yds * 5500)}</span>
+              <input type="range" class="senator-slider" id="senator-slider"
+                min="1" max="10" step="1" value="${yds}"
+                aria-label="Senator Fabric quantity in yards"
+                aria-valuemin="1" aria-valuemax="10" aria-valuenow="${yds}">
+            </div>`;
+          } else if (item.id === 'ankara') {
+            const opt = state.ankaraOption;
+            ctrlHtml = `<div class="item-ctrl ankara-ctrl" id="ankara-ctrl">
+              <button class="ankara-opt${opt === '3yds' ? ' active' : ''}" data-opt="3yds" type="button" aria-pressed="${opt === '3yds'}">3 yds — ₦3,000</button>
+              <button class="ankara-opt${opt === '6yds' ? ' active' : ''}" data-opt="6yds" type="button" aria-pressed="${opt === '6yds'}">6 yds — ₦6,000</button>
+            </div>`;
+          }
         }
-        <div class="item-info">
-          <div class="item-name">${item.name}</div>
-          ${item.note ? `<div class="item-note">${item.note}</div>` : ''}
-        </div>
-        <div class="item-price">${fmt(item.price)}</div>
-      `;
+        el.innerHTML = `
+          <div class="item-card-row">
+            ${checkHtml}
+            <div class="item-info"><div class="item-name">${item.name}</div></div>
+            <div class="item-price" id="${item.id}-price-disp">${fmt(effPrice)}</div>
+          </div>
+          ${ctrlHtml}`;
+      } else {
+        el.innerHTML = `
+          ${checkHtml}
+          <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            ${item.note ? `<div class="item-note">${item.note}</div>` : ''}
+          </div>
+          <div class="item-price">${fmt(item.price)}</div>`;
+      }
+
       list.appendChild(el);
     });
+
+    attachDynamicControls();
     syncTotal();
   }
 
   function toggleItem(id) {
-    state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id);
+    if (state.selected.has(id)) {
+      state.selected.delete(id);
+      if (id === 'senator') state.senatorYards = 3;
+      if (id === 'ankara')  state.ankaraOption = '6yds';
+    } else {
+      state.selected.add(id);
+    }
     renderItems();
+  }
+
+  function updateSliderFill(slider) {
+    const pct = ((+slider.value - +slider.min) / (+slider.max - +slider.min) * 100).toFixed(2);
+    slider.style.background =
+      `linear-gradient(to right, #2DB54F ${pct}%, #2E2E2E ${pct}%)`;
+  }
+
+  function attachDynamicControls() {
+    // Prevent ctrl clicks from bubbling to the card (which would toggle selection).
+    // Also manage inert so hidden controls are invisible to keyboard navigation.
+    document.querySelectorAll('.item-ctrl').forEach(ctrl => {
+      ctrl.addEventListener('click', e => e.stopPropagation());
+      const card = ctrl.closest('.item-card');
+      if (card && card.classList.contains('selected')) {
+        ctrl.removeAttribute('inert');
+      } else {
+        ctrl.setAttribute('inert', '');
+      }
+    });
+
+    const slider = document.getElementById('senator-slider');
+    if (slider) {
+      updateSliderFill(slider);
+      slider.addEventListener('input', () => {
+        state.senatorYards = +slider.value;
+        slider.setAttribute('aria-valuenow', slider.value);
+        const lbl = document.getElementById('senator-lbl');
+        if (lbl) lbl.textContent = `${slider.value} yds × ₦5,500 = ${fmt(+slider.value * 5500)}`;
+        const priceDisp = document.getElementById('senator-price-disp');
+        if (priceDisp) priceDisp.textContent = fmt(+slider.value * 5500);
+        updateSliderFill(slider);
+        syncTotal();
+      });
+    }
+
+    document.querySelectorAll('.ankara-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.ankaraOption = btn.dataset.opt;
+        document.querySelectorAll('.ankara-opt').forEach(b => {
+          b.classList.toggle('active', b === btn);
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+        const priceDisp = document.getElementById('ankara-price-disp');
+        if (priceDisp) priceDisp.textContent = fmt(state.ankaraOption === '3yds' ? 3000 : 6000);
+        syncTotal();
+      });
+    });
   }
 
   function syncTotal() {
@@ -937,7 +1155,7 @@
     const t = getTotal();
     const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
     $('order-rows').innerHTML =
-      rows.map(i => `<div class="s-row"><span>${i.name}</span><span>${fmt(i.price)}</span></div>`).join('') +
+      rows.map(i => `<div class="s-row"><span>${getItemDisplayLabel(i)}</span><span>${fmt(getItemEffectivePrice(i))}</span></div>`).join('') +
       `<div class="s-row s-total"><span>Total</span><span>${fmt(t)}</span></div>`;
     $('pay-label').textContent = t.toLocaleString('en-NG');
     goTo('screen-checkout');
@@ -1004,9 +1222,11 @@
     }
 
     const total = getTotal();
-    if (total <= 0) {
+    const amountInKobo = Math.round(total * 100);
+    if (!Number.isFinite(amountInKobo) || amountInKobo <= 0) {
       _paymentInFlight = false;
       btn.disabled = false;
+      alert('Payment amount is invalid. Please go back and reselect your items.');
       return;
     }
 
@@ -1026,7 +1246,7 @@
     const handler = PaystackPop.setup({
       key:      PAYSTACK_KEY,
       email:    email,
-      amount:   total * 100,          // kobo
+      amount:   amountInKobo,
       currency: 'NGN',
       ref:      ref,
       metadata: {
@@ -1070,7 +1290,7 @@
   function sendToSheets(reference) {
     const selectedItems = ITEMS[state.gender]
       .filter(i => state.selected.has(i.id))
-      .map(i => i.name)
+      .map(i => getItemDisplayLabel(i))
       .join(', ');
 
     const payload = {
@@ -1104,7 +1324,7 @@
 
     $('r-items').innerHTML = ITEMS[state.gender]
       .filter(i => state.selected.has(i.id))
-      .map(i => `<div class="rc-row"><span class="lbl">${i.name}</span><span class="val">${fmt(i.price)}</span></div>`)
+      .map(i => `<div class="rc-row"><span class="lbl">${getItemDisplayLabel(i)}</span><span class="val">${fmt(getItemEffectivePrice(i))}</span></div>`)
       .join('');
 
     goTo('screen-receipt');
@@ -1114,11 +1334,13 @@
   function startOver() {
     const currentUser = state.user;
     state = {
-      user:      currentUser,
-      gender:    null,
-      selected:  new Set(),
-      paidItems: new Set(),
+      user:          currentUser,
+      gender:        null,
+      selected:      new Set(),
+      paidItems:     new Set(),
       name: '', matric: '', email: '', phone: '', ref: '',
+      senatorYards:  3,
+      ankaraOption:  '6yds',
     };
     ['f-name','f-matric','f-email','f-phone'].forEach(id => $(id).value = '');
     goTo('screen-gender');
