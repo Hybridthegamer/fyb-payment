@@ -618,6 +618,64 @@
       outline: 2px solid #2DB54F;
       outline-offset: 2px;
     }
+
+    /* ─── JACKET SIZE FIELD ──────────────────────── */
+    .size-guide-link {
+      display: inline-block;
+      font-size: 11px;
+      color: #2DB54F;
+      text-decoration: none;
+      margin-bottom: 8px;
+      transition: opacity .2s;
+    }
+    .size-guide-link:hover { opacity: .75; }
+
+    .size-guide-wrap {
+      margin-bottom: 8px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .size-guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: var(--surface);
+    }
+    .size-guide-table th,
+    .size-guide-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .size-guide-table thead th {
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 10px;
+    }
+    .size-guide-table tbody tr:last-child td { border-bottom: none; }
+    .size-guide-table tbody td { color: var(--text); }
+
+    .field-error {
+      display: block;
+      font-size: 11px;
+      color: #e05252;
+      margin-top: 6px;
+    }
+
+    select.fi {
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A7A7A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    select.fi:disabled { opacity: .6; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -760,6 +818,7 @@
         <div class="rc-row"><span class="lbl">Matric No.</span><span class="val" id="r-matric">—</span></div>
         <div class="rc-row"><span class="lbl">WhatsApp</span><span class="val" id="r-phone">—</span></div>
         <div class="rc-row"><span class="lbl">Gender</span><span class="val" id="r-gender">—</span></div>
+        <div class="rc-row" id="r-jacket-size-row" style="display:none"><span class="lbl">Jacket Size</span><span class="val" id="r-jacket-size">—</span></div>
       </div>
       <div class="rc-sec">
         <div class="rc-sec-lbl">Items Paid For</div>
@@ -868,13 +927,20 @@
 
   // ── Firestore: load paid items ─────────────────────────
   async function loadPaidItems() {
-    if (!state.user) { state.paidItems = new Set(); return; }
+    if (!state.user) { state.paidItems = new Set(); state._savedJacketSize = null; return; }
     try {
       const snap = await db.collection('payments').doc(state.user.uid).get();
-      state.paidItems = snap.exists ? new Set(snap.data().paidItems || []) : new Set();
+      if (snap.exists) {
+        state.paidItems = new Set(snap.data().paidItems || []);
+        state._savedJacketSize = snap.data().jacketSize || null;
+      } else {
+        state.paidItems = new Set();
+        state._savedJacketSize = null;
+      }
     } catch (err) {
       console.warn('[Firestore] Load failed:', err);
       state.paidItems = new Set();
+      state._savedJacketSize = null;
     }
   }
 
@@ -899,7 +965,7 @@
     try {
       const snap = await docRef.get();
       if (snap.exists) {
-        await docRef.update({
+        const updateData = {
           name:         state.name,
           matric:       state.matric,
           phone:        state.phone,
@@ -908,7 +974,11 @@
           paidItems:    firebase.firestore.FieldValue.arrayUnion(...newPaidIds),
           totalPaid:    firebase.firestore.FieldValue.increment(amount),
           transactions: firebase.firestore.FieldValue.arrayUnion(txn),
-        });
+        };
+        if (state.selected.has('jacket') && state.jacketSize) {
+          updateData.jacketSize = state.jacketSize;
+        }
+        await docRef.update(updateData);
       } else {
         await docRef.set({
           name:         state.name,
@@ -919,6 +989,7 @@
           paidItems:    newPaidIds,
           totalPaid:    amount,
           transactions: [txn],
+          jacketSize:   state.selected.has('jacket') ? (state.jacketSize || null) : null,
         });
       }
     } catch (err) {
@@ -958,6 +1029,7 @@
   function getItemDisplayLabel(item) {
     if (item.id === 'senator') return `Senator Fabric (${state.senatorYards || 3} yds)`;
     if (item.id === 'ankara')  return `Ankara Fabric (${state.ankaraOption === '3yds' ? 3 : 6} yds)`;
+    if (item.id === 'jacket' && state.jacketSize) return `Jacket (${state.jacketSize})`;
     return item.name;
   }
 
@@ -970,6 +1042,8 @@
     ref: '',
     senatorYards:  3,
     ankaraOption:  '6yds',
+    jacketSize:    null,
+    _savedJacketSize: null,
   };
 
   // ── Utilities ──────────────────────────────────────────
@@ -1083,6 +1157,7 @@
       state.selected.delete(id);
       if (id === 'senator') state.senatorYards = 3;
       if (id === 'ankara')  state.ankaraOption = '6yds';
+      if (id === 'jacket')  state.jacketSize = null;
     } else {
       state.selected.add(id);
     }
@@ -1143,6 +1218,123 @@
     $('btn-proceed').disabled = state.selected.size === 0;
   }
 
+  // ── Jacket size helpers ────────────────────────────────
+  function updateOrderSummary() {
+    const t = getTotal();
+    const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
+    $('order-rows').innerHTML =
+      rows.map(i => `<div class="s-row"><span>${getItemDisplayLabel(i)}</span><span>${fmt(getItemEffectivePrice(i))}</span></div>`).join('') +
+      `<div class="s-row s-total"><span>Total</span><span>${fmt(t)}</span></div>`;
+  }
+
+  function toggleSizeGuide(e) {
+    e.preventDefault();
+    const wrap = $('size-guide-wrap');
+    const link = $('size-guide-toggle');
+    if (!wrap) return;
+    const isOpen = wrap.style.display !== 'none';
+    wrap.style.display = isOpen ? 'none' : 'block';
+    link.textContent = isOpen ? 'View size guide ▾' : 'Hide size guide ▴';
+  }
+
+  function renderJacketSizeField() {
+    const existing = $('fg-jacket-size');
+    if (existing) existing.remove();
+
+    if (!state.selected.has('jacket')) return;
+
+    const sizes = [
+      { value: 'M',    label: 'M — Chest 40cm, Length 27cm, Sleeve 24cm' },
+      { value: 'L',    label: 'L — Chest 42cm, Length 29cm, Sleeve 25cm' },
+      { value: 'XL',   label: 'XL — Chest 45cm, Length 30cm, Sleeve 26cm' },
+      { value: 'XXL',  label: 'XXL — Chest 49cm, Length 31cm, Sleeve 27cm' },
+      { value: 'XXXL', label: 'XXXL — Chest 50cm, Length 31cm, Sleeve 27.5cm' },
+    ];
+
+    const fg = document.createElement('div');
+    fg.className = 'fg';
+    fg.id = 'fg-jacket-size';
+
+    const label = document.createElement('label');
+    label.className = 'fl';
+    label.textContent = 'Jacket Size';
+
+    const guideLink = document.createElement('a');
+    guideLink.href = '#';
+    guideLink.className = 'size-guide-link';
+    guideLink.id = 'size-guide-toggle';
+    guideLink.textContent = 'View size guide ▾';
+    guideLink.addEventListener('click', toggleSizeGuide);
+
+    const guideWrap = document.createElement('div');
+    guideWrap.id = 'size-guide-wrap';
+    guideWrap.className = 'size-guide-wrap';
+    guideWrap.style.display = 'none';
+    const table = document.createElement('table');
+    table.className = 'size-guide-table';
+    table.innerHTML =
+      '<thead><tr><th>Size</th><th>Chest</th><th>Length</th><th>Sleeve</th></tr></thead>' +
+      '<tbody>' +
+        '<tr><td>M</td><td>40cm</td><td>27cm</td><td>24cm</td></tr>' +
+        '<tr><td>L</td><td>42cm</td><td>29cm</td><td>25cm</td></tr>' +
+        '<tr><td>XL</td><td>45cm</td><td>30cm</td><td>26cm</td></tr>' +
+        '<tr><td>XXL</td><td>49cm</td><td>31cm</td><td>27cm</td></tr>' +
+        '<tr><td>XXXL</td><td>50cm</td><td>31cm</td><td>27.5cm</td></tr>' +
+      '</tbody>';
+    guideWrap.appendChild(table);
+
+    const select = document.createElement('select');
+    select.className = 'fi';
+    select.id = 'f-jacket-size';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    placeholder.textContent = 'Select your jacket size';
+    select.appendChild(placeholder);
+
+    sizes.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.value;
+      opt.textContent = s.label;
+      select.appendChild(opt);
+    });
+
+    // Pre-populate from Firestore if size was already recorded (read-only)
+    if (state._savedJacketSize) {
+      select.value = state._savedJacketSize;
+      select.disabled = true;
+      state.jacketSize = state._savedJacketSize;
+    } else if (state.jacketSize) {
+      select.value = state.jacketSize;
+    }
+
+    select.addEventListener('change', () => {
+      state.jacketSize = select.value || null;
+      const err = $('jacket-size-error');
+      if (err) err.style.display = 'none';
+      updateOrderSummary();
+    });
+
+    const errorEl = document.createElement('span');
+    errorEl.className = 'field-error';
+    errorEl.id = 'jacket-size-error';
+    errorEl.textContent = 'Please select your jacket size to continue.';
+    errorEl.style.display = 'none';
+
+    fg.appendChild(label);
+    fg.appendChild(guideLink);
+    fg.appendChild(guideWrap);
+    fg.appendChild(select);
+    fg.appendChild(errorEl);
+
+    const phoneFg = $('f-phone').closest('.fg');
+    if (phoneFg && phoneFg.parentNode) {
+      phoneFg.parentNode.insertBefore(fg, phoneFg.nextSibling);
+    }
+  }
+
   // ── Screen 2 → 3 ──────────────────────────────────────
   // [FIX: auth + state guards — CRITICAL]
   function proceedToCheckout() {
@@ -1152,12 +1344,9 @@
     if (state.user.displayName && !$('f-name').value) $('f-name').value = state.user.displayName;
     if (state.user.email && !$('f-email').value)       $('f-email').value = state.user.email;
 
-    const t = getTotal();
-    const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
-    $('order-rows').innerHTML =
-      rows.map(i => `<div class="s-row"><span>${getItemDisplayLabel(i)}</span><span>${fmt(getItemEffectivePrice(i))}</span></div>`).join('') +
-      `<div class="s-row s-total"><span>Total</span><span>${fmt(t)}</span></div>`;
-    $('pay-label').textContent = t.toLocaleString('en-NG');
+    updateOrderSummary();
+    $('pay-label').textContent = getTotal().toLocaleString('en-NG');
+    renderJacketSizeField();
     goTo('screen-checkout');
   }
 
@@ -1192,6 +1381,21 @@
     const phoneRx = /^(\+?234|0)[789]\d{9}$/;
     if (!phoneRx.test(phone)) {
       alert('Please enter a valid Nigerian phone number (e.g. 08012345678).'); return;
+    }
+
+    if (state.selected.has('jacket')) {
+      const jacketSizeEl = $('f-jacket-size');
+      if (jacketSizeEl && !jacketSizeEl.value) {
+        const errorEl = $('jacket-size-error');
+        if (errorEl) {
+          errorEl.style.display = 'block';
+          errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+      if (jacketSizeEl) state.jacketSize = jacketSizeEl.value;
+    } else {
+      state.jacketSize = null;
     }
 
     state.name = name; state.matric = matric;
@@ -1251,10 +1455,11 @@
       ref:      ref,
       metadata: {
         custom_fields: [
-          { display_name: 'Full Name',     variable_name: 'full_name', value: name   },
-          { display_name: 'Matric Number', variable_name: 'matric',    value: matric },
-          { display_name: 'WhatsApp',      variable_name: 'whatsapp',  value: phone  },
-          { display_name: 'Gender',        variable_name: 'gender',    value: state.gender },
+          { display_name: 'Full Name',     variable_name: 'full_name',   value: name   },
+          { display_name: 'Matric Number', variable_name: 'matric',      value: matric },
+          { display_name: 'WhatsApp',      variable_name: 'whatsapp',    value: phone  },
+          { display_name: 'Gender',        variable_name: 'gender',      value: state.gender },
+          ...(state.jacketSize ? [{ display_name: 'Jacket Size', variable_name: 'jacket_size', value: state.jacketSize }] : []),
         ]
       },
       callback: function (response) {
@@ -1294,15 +1499,16 @@
       .join(', ');
 
     const payload = {
-      timestamp: new Date().toLocaleString('en-NG'),
-      name:      state.name,
-      matric:    state.matric,
-      email:     state.email,
-      phone:     state.phone,
-      gender:    state.gender === 'male' ? 'Male' : 'Female',
-      items:     selectedItems,
-      total:     getTotal(),
-      reference: reference,
+      timestamp:  new Date().toLocaleString('en-NG'),
+      name:       state.name,
+      matric:     state.matric,
+      email:      state.email,
+      phone:      state.phone,
+      gender:     state.gender === 'male' ? 'Male' : 'Female',
+      items:      selectedItems,
+      total:      getTotal(),
+      reference:  reference,
+      jacketSize: state.selected.has('jacket') ? (state.jacketSize || '') : '',
     };
 
     fetch(SHEETS_WEBHOOK, {
@@ -1322,6 +1528,13 @@
     $('r-total').textContent  = fmt(getTotal());
     $('r-ref').textContent    = reference;
 
+    if (state.selected.has('jacket') && state.jacketSize) {
+      $('r-jacket-size').textContent = state.jacketSize;
+      $('r-jacket-size-row').style.display = 'flex';
+    } else {
+      $('r-jacket-size-row').style.display = 'none';
+    }
+
     $('r-items').innerHTML = ITEMS[state.gender]
       .filter(i => state.selected.has(i.id))
       .map(i => `<div class="rc-row"><span class="lbl">${getItemDisplayLabel(i)}</span><span class="val">${fmt(getItemEffectivePrice(i))}</span></div>`)
@@ -1334,15 +1547,19 @@
   function startOver() {
     const currentUser = state.user;
     state = {
-      user:          currentUser,
-      gender:        null,
-      selected:      new Set(),
-      paidItems:     new Set(),
+      user:             currentUser,
+      gender:           null,
+      selected:         new Set(),
+      paidItems:        new Set(),
       name: '', matric: '', email: '', phone: '', ref: '',
-      senatorYards:  3,
-      ankaraOption:  '6yds',
+      senatorYards:     3,
+      ankaraOption:     '6yds',
+      jacketSize:       null,
+      _savedJacketSize: null,
     };
     ['f-name','f-matric','f-email','f-phone'].forEach(id => $(id).value = '');
+    const jacketSizeFg = $('fg-jacket-size');
+    if (jacketSizeFg) jacketSizeFg.remove();
     goTo('screen-gender');
   }
 </script>
