@@ -77,8 +77,7 @@ module.exports = async function handler(req, res) {
         'x-api-key': process.env.FOSSAPAY_SECRET_KEY,
       },
       body: JSON.stringify({
-        firstName:    name.split(' ')[0],
-        lastName:     name.split(' ').slice(1).join(' ') || name.split(' ')[0],
+        firstName:    'fybpayment26',
         emailAddress: email,
         mobileNumber: phone,
         dateOfBirth:  '2000-01-01',
@@ -98,18 +97,21 @@ module.exports = async function handler(req, res) {
       }
       // Customer already exists — retrieve the list and find by email
       const listRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
-        method: 'GET',
         headers: { 'x-api-key': process.env.FOSSAPAY_SECRET_KEY },
       });
-      const listData = await listRes.json();
-      const customers = listData.data ?? listData;
-      const existing = Array.isArray(customers)
-        ? customers.find(
-            (c) => (c.emailAddress || c.email || '').toLowerCase() === email.toLowerCase()
-          )
-        : null;
+      const customers = await listRes.json();
+      if (!Array.isArray(customers)) {
+        return res.status(500).json({
+          success: false,
+          error: 'Unexpected response from FossaPay customer list',
+        });
+      }
+      const existing = customers.find(
+        (c) => c.email?.toLowerCase() === email.toLowerCase()
+      );
       if (!existing) {
         return res.status(500).json({
+          success: false,
           error: 'Could not retrieve existing customer. Please contact support.',
         });
       }
@@ -162,6 +164,7 @@ module.exports = async function handler(req, res) {
       items,
       jacketSize:     jacketSize || null,
       expectedAmount: amount,
+      customerId,
       walletId,
       accountNumber,
       bankName,
