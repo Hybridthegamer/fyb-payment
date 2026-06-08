@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
-  <script src="https://js.paystack.co/v1/inline.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -405,7 +404,113 @@
     .btn-pay:hover { background: var(--green-light); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(30,124,58,.32); }
     .btn-pay:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    /* ─── SCREEN 4 : RECEIPT ──────────────── */
+    /* ─── SCREEN 4 : PENDING ─────────────── */
+    .pd-body { flex: 1; max-width: 560px; width: 100%; margin: 0 auto; padding: 32px 24px 40px; }
+    .pd-title { font-family: var(--font-d); font-size: 34px; letter-spacing: 2px; margin-bottom: 24px; }
+
+    .pd-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .pd-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green-light);
+      animation: pulse 1.8s infinite;
+      flex-shrink: 0;
+    }
+
+    .pd-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .pd-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .pd-row:last-child { border: none; padding-bottom: 0; }
+    .pd-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); flex-shrink: 0; }
+    .pd-val { font-size: 14px; font-weight: 500; text-align: right; }
+    .pd-account-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .pd-account-num {
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+    .pd-amount {
+      font-family: var(--font-d);
+      font-size: 32px;
+      letter-spacing: 1px;
+      color: var(--green-light);
+    }
+    .copy-btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: var(--font-b);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: border-color .2s, background .2s;
+    }
+    .copy-btn:hover { border-color: var(--green); background: var(--green-glow); }
+
+    .pd-warning {
+      border: 1px solid #b45309;
+      background: rgba(180, 83, 9, 0.08);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #fbbf24;
+      line-height: 1.5;
+      margin-top: 12px;
+    }
+
+    .pd-note {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .btn-back-sec {
+      width: 100%;
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 13px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-back-sec:hover { border-color: var(--green); color: var(--text); }
+
+    /* ─── SCREEN 5 : RECEIPT ──────────────── */
     #screen-receipt { justify-content: flex-start; align-items: stretch; padding-bottom: 40px; }
     .rc-wrap { width: 100%; max-width: 520px; margin: 0 auto; padding: 40px 20px 0; }
 
@@ -695,7 +800,7 @@
       </svg>
       Continue with Google
     </button>
-    <p class="signin-footer">Payments are processed securely via Paystack</p>
+    <p class="signin-footer">Payments are processed securely via FossaPay</p>
   </div>
 </div>
 
@@ -717,7 +822,7 @@
         <span class="g-card-meta">5 items · max ₦37,500</span>
       </div>
     </div>
-    <p class="g-footer">Payments are processed securely via Paystack</p>
+    <p class="g-footer">Payments are processed securely via FossaPay</p>
   </div>
 </div>
 
@@ -779,7 +884,6 @@
     <div class="fg">
       <label class="fl">Email Address</label>
       <input class="fi" type="email" id="f-email" placeholder="e.g. chidi@gmail.com" autocomplete="email" />
-      <span style="font-size:11px;color:var(--dim);display:block;margin-top:5px;">Paystack needs this to send your receipt</span>
     </div>
     <div class="fg">
       <label class="fl">WhatsApp Number</label>
@@ -787,16 +891,55 @@
     </div>
 
     <button class="btn-pay" id="btn-pay" onclick="initiatePayment()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="3"/>
-        <path d="M2 10h20"/>
-      </svg>
-      Pay ₦<span id="pay-label">0</span> via Paystack
+      Generate Payment Account →
     </button>
   </div>
 </div>
 
-<!-- ══ SCREEN 4 : RECEIPT ════════════════════════════════════════ -->
+<!-- ══ SCREEN 4 : PENDING ═════════════════════════════════════════ -->
+<div class="screen" id="screen-pending">
+  <header class="topbar">
+    <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Payment</span></div>
+    <div class="user-chip" id="user-chip-pending"></div>
+  </header>
+  <div class="pd-body">
+    <h2 class="pd-title">TRANSFER DETAILS</h2>
+    <div class="pd-status">
+      <span class="pd-dot"></span>
+      Awaiting your payment...
+    </div>
+
+    <div class="pd-card">
+      <div class="pd-row">
+        <span class="pd-lbl">Bank Name</span>
+        <span class="pd-val" id="pd-bank-name">—</span>
+      </div>
+      <div class="pd-row">
+        <span class="pd-lbl">Account Number</span>
+        <div class="pd-account-wrap">
+          <span class="pd-account-num" id="pd-account-number">—</span>
+          <button class="copy-btn" id="copy-btn" onclick="copyAccountNumber()">Copy</button>
+        </div>
+      </div>
+      <div class="pd-row">
+        <span class="pd-lbl">Amount</span>
+        <span class="pd-amount" id="pd-amount">—</span>
+      </div>
+    </div>
+
+    <div class="pd-warning">
+      Transfer the <strong>EXACT</strong> amount shown. Do not send more or less.
+    </div>
+
+    <p class="pd-note" style="margin-top:20px;">
+      This page updates automatically when your payment is confirmed. Keep it open.
+    </p>
+
+    <button class="btn-back-sec" onclick="goBackFromPending()">← Go Back</button>
+  </div>
+</div>
+
+<!-- ══ SCREEN 5 : RECEIPT ════════════════════════════════════════ -->
 <div class="screen" id="screen-receipt">
   <header class="topbar">
     <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Receipt</span></div>
@@ -850,12 +993,6 @@
   const FIREBASE_APP_ID      = '1:614631046833:web:9f0f1b7e17f10030c12c90';
   // ══════════════════════════════════════════════════════
 
-  // ══════════════════════════════════════════════════════
-  //  PAYSTACK & SHEETS CONFIG
-  // ══════════════════════════════════════════════════════
-  const PAYSTACK_KEY   = 'pk_live_0065af2ad32a9cd14a7eafe26c4e30d78f35d01b';
-  const SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbyYVucuUzguq4pn1b179i-HQyVAn3OX7mslTXY-4VKeKwy9jaZBGMN8uF1X7yHUFqY/exec';
-  // ══════════════════════════════════════════════════════
 
   // ── Firebase init ──────────────────────────────────────
   firebase.initializeApp({
@@ -903,7 +1040,7 @@
     const initial = (user.displayName || user.email || '?')[0].toUpperCase();
     const email   = user.email || '';
 
-    ['user-chip-items', 'user-chip-checkout', 'user-chip-receipt'].forEach(id => {
+    ['user-chip-items', 'user-chip-checkout', 'user-chip-pending', 'user-chip-receipt'].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
       el.innerHTML = '';
@@ -1039,11 +1176,13 @@
     selected:      new Set(),
     paidItems:     new Set(),
     name: '', matric: '', email: '', phone: '',
-    ref: '',
     senatorYards:  3,
     ankaraOption:  '6yds',
     jacketSize:    null,
     _savedJacketSize: null,
+    pendingAccount:       null,
+    pendingAccountNumber: '',
+    unsubscribe:          null,
   };
 
   // ── Utilities ──────────────────────────────────────────
@@ -1058,7 +1197,7 @@
   // [FIX: auth bypass — CRITICAL] goTo now enforces authentication for all post-login screens.
   // A browser-console call of goTo('screen-checkout') without being signed in
   // will silently redirect to sign-in instead of granting access.
-  const PROTECTED_SCREENS = new Set(['screen-gender', 'screen-items', 'screen-checkout', 'screen-receipt']);
+  const PROTECTED_SCREENS = new Set(['screen-gender', 'screen-items', 'screen-checkout', 'screen-pending', 'screen-receipt']);
 
   function goTo(id) {
     if (PROTECTED_SCREENS.has(id) && !state.user) {
@@ -1345,28 +1484,27 @@
     if (state.user.email && !$('f-email').value)       $('f-email').value = state.user.email;
 
     updateOrderSummary();
-    $('pay-label').textContent = getTotal().toLocaleString('en-NG');
     renderJacketSizeField();
     goTo('screen-checkout');
   }
 
   // ── Screen 3 : payment ────────────────────────────────
-  // Tracks whether a Paystack popup is currently open to prevent double-submission.
-  let _paymentInFlight = false;
 
-  // [FIX: auth guard + input validation + double-payment guard + payment integrity — CRITICAL]
+  function getSelectedItemsArray() {
+    if (!state.gender) return [];
+    return ITEMS[state.gender]
+      .filter(i => state.selected.has(i.id))
+      .map(i => ({ id: i.id, name: getItemDisplayLabel(i), price: getItemEffectivePrice(i) }));
+  }
+
   async function initiatePayment() {
     if (!state.user) { goTo('screen-signin'); return; }
-    if (_paymentInFlight) return;
 
     const name   = $('f-name').value.trim();
     const matric = $('f-matric').value.trim();
     const email  = $('f-email').value.trim();
-    // Strip whitespace from phone before validation
     const phone  = $('f-phone').value.trim().replace(/\s/g, '');
 
-    // [FIX: input validation — MEDIUM] Stronger checks replacing the previous
-    // name/matric empty-only checks and the insufficient email.includes('@') check.
     if (!name || name.length < 2 || name.length > 100) {
       alert('Please enter your full name (2–100 characters).'); return;
     }
@@ -1377,7 +1515,6 @@
     if (!emailRx.test(email)) {
       alert('Please enter a valid email address.'); return;
     }
-    // Accepts: 08XXXXXXXXX, 07XXXXXXXXX, 09XXXXXXXXX, +2348XXXXXXXXX, 2348XXXXXXXXX
     const phoneRx = /^(\+?234|0)[789]\d{9}$/;
     if (!phoneRx.test(phone)) {
       alert('Please enter a valid Nigerian phone number (e.g. 08012345678).'); return;
@@ -1401,122 +1538,133 @@
     state.name = name; state.matric = matric;
     state.email = email; state.phone = phone;
 
-    // [FIX: race condition / double payment — MEDIUM] Re-fetch paid items from
-    // Firestore right before opening Paystack to catch concurrent payments in
-    // other tabs that completed since the items screen was loaded.
-    _paymentInFlight = true;
     const btn = $('btn-pay');
     btn.disabled = true;
+    btn.textContent = 'Setting up your payment...';
 
-    await loadPaidItems();
-
-    const conflicts = ITEMS[state.gender].filter(i =>
-      state.selected.has(i.id) && state.paidItems.has(i.id)
-    );
-    if (conflicts.length > 0) {
-      _paymentInFlight = false;
+    let idToken;
+    try {
+      idToken = await state.user.getIdToken();
+    } catch {
       btn.disabled = false;
-      alert(
-        'These items are already paid: ' + conflicts.map(i => i.name).join(', ') +
-        '.\n\nPlease go back and reselect your remaining items.'
-      );
-      renderItems();
-      goTo('screen-items');
+      btn.textContent = 'Generate Payment Account →';
+      alert('Authentication error. Please sign in again.');
       return;
     }
 
-    const total = getTotal();
-    const amountInKobo = Math.round(total * 100);
-    if (!Number.isFinite(amountInKobo) || amountInKobo <= 0) {
-      _paymentInFlight = false;
+    try {
+      const res = await fetch('/api/initiate-payment', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          name, matric, email, phone,
+          gender:     state.gender,
+          items:      getSelectedItemsArray(),
+          amount:     getTotal(),
+          jacketSize: state.jacketSize,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Payment initiation failed');
+      state.pendingAccount = data;
+      showPendingScreen(data);
+    } catch (err) {
+      alert(err.message || 'Something went wrong. Please try again.');
+    } finally {
       btn.disabled = false;
-      alert('Payment amount is invalid. Please go back and reselect your items.');
-      return;
+      btn.textContent = 'Generate Payment Account →';
     }
-
-    const ref = 'FYB-' + Date.now();
-
-    // [FIX: payment integrity — CRITICAL] The post-payment flow (Firestore write,
-    // Sheets log, receipt screen) is locked inside a closure. callbackConsumed
-    // is a one-time flag that can only be set to true by the Paystack callback,
-    // not by any external console call. The reference check ensures the response
-    // carries the exact ref we sent to Paystack — a mismatch aborts the flow.
-    // NOTE: this is the best achievable client-only protection. True verification
-    // requires a server: add a Firebase Cloud Function or Cloudflare Worker that
-    // calls GET https://api.paystack.co/transaction/verify/:ref with your secret
-    // key and writes to Firestore only after a confirmed status is returned.
-    let callbackConsumed = false;
-
-    const handler = PaystackPop.setup({
-      key:      PAYSTACK_KEY,
-      email:    email,
-      amount:   amountInKobo,
-      currency: 'NGN',
-      ref:      ref,
-      metadata: {
-        custom_fields: [
-          { display_name: 'Full Name',     variable_name: 'full_name',   value: name   },
-          { display_name: 'Matric Number', variable_name: 'matric',      value: matric },
-          { display_name: 'WhatsApp',      variable_name: 'whatsapp',    value: phone  },
-          { display_name: 'Gender',        variable_name: 'gender',      value: state.gender },
-          ...(state.jacketSize ? [{ display_name: 'Jacket Size', variable_name: 'jacket_size', value: state.jacketSize }] : []),
-        ]
-      },
-      callback: function (response) {
-        if (callbackConsumed) return;
-        callbackConsumed = true;
-        _paymentInFlight = false;
-        btn.disabled = false;
-        if (!response.reference || response.reference !== ref) {
-          console.error('[Security] Paystack reference mismatch — aborting post-payment flow');
-          return;
-        }
-        state.ref = response.reference;
-        saveToFirestore(response.reference);
-        sendToSheets(response.reference);
-        showReceipt(response.reference);
-      },
-      // [FIX: broken state on popup close — LOW] Reset flags so the Pay button
-      // becomes usable again if the user dismisses the popup without paying.
-      onClose: function () {
-        _paymentInFlight = false;
-        btn.disabled = false;
-      }
-    });
-
-    handler.openIframe();
   }
 
-  // ── Google Sheets webhook ─────────────────────────────
-  // NOTE: This URL is visible in page source. Anyone can POST arbitrary data to it
-  // directly. The risk is data pollution in the sheet, not financial loss.
-  // Mitigation: in the Apps Script, cross-check references against your Paystack
-  // dashboard via the Paystack API before accepting a row.
-  function sendToSheets(reference) {
-    const selectedItems = ITEMS[state.gender]
-      .filter(i => state.selected.has(i.id))
-      .map(i => getItemDisplayLabel(i))
-      .join(', ');
+  // ── Screen 4 : pending ────────────────────────────────
 
-    const payload = {
-      timestamp:  new Date().toLocaleString('en-NG'),
-      name:       state.name,
-      matric:     state.matric,
-      email:      state.email,
-      phone:      state.phone,
-      gender:     state.gender === 'male' ? 'Male' : 'Female',
-      items:      selectedItems,
-      total:      getTotal(),
-      reference:  reference,
-      jacketSize: state.selected.has('jacket') ? (state.jacketSize || '') : '',
-    };
+  function showPendingScreen(accountDetails) {
+    $('pd-bank-name').textContent     = accountDetails.bankName;
+    $('pd-account-number').textContent = accountDetails.accountNumber;
+    $('pd-amount').textContent        = fmt(accountDetails.amount);
+    state.pendingAccountNumber        = accountDetails.accountNumber;
 
-    fetch(SHEETS_WEBHOOK, {
-      method:  'POST',
-      mode:    'no-cors',        // Apps Script doesn't return CORS headers
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    }).catch(err => console.warn('[Sheets] Log failed:', err));
+    goTo('screen-pending');
+
+    const unsub = db.collection('pendingPayments')
+      .doc(accountDetails.accountNumber)
+      .onSnapshot(async snap => {
+        const data = snap.data();
+        if (data && data.status === 'completed') {
+          unsub();
+          state.unsubscribe = null;
+          try {
+            const paySnap = await db.collection('payments').doc(state.user.uid).get();
+            if (paySnap.exists) {
+              showReceiptFromFirestore(paySnap.data(), accountDetails.amount, accountDetails.accountNumber);
+            } else {
+              goTo('screen-receipt');
+            }
+          } catch {
+            goTo('screen-receipt');
+          }
+        }
+      }, err => console.error('[Firestore listener]', err));
+
+    state.unsubscribe = unsub;
+  }
+
+  function goBackFromPending() {
+    if (state.unsubscribe) {
+      state.unsubscribe();
+      state.unsubscribe = null;
+    }
+    goTo('screen-checkout');
+  }
+
+  function copyAccountNumber() {
+    const num = state.pendingAccount?.accountNumber || '';
+    if (!num) return;
+    const btn = $('copy-btn');
+    const reset = () => { btn.textContent = 'Copy'; };
+    navigator.clipboard.writeText(num).then(() => {
+      btn.textContent = 'Copied ✓';
+      setTimeout(reset, 2000);
+    }).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = num;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      btn.textContent = 'Copied ✓';
+      setTimeout(reset, 2000);
+    });
+  }
+
+  function showReceiptFromFirestore(paymentData, amount, reference) {
+    $('r-name').textContent   = paymentData.name   || state.name;
+    $('r-matric').textContent = paymentData.matric || state.matric;
+    $('r-phone').textContent  = paymentData.phone  || state.phone;
+    $('r-gender').textContent = (paymentData.gender || state.gender) === 'male' ? 'Male' : 'Female';
+    $('r-total').textContent  = fmt(amount);
+    $('r-ref').textContent    = reference;
+
+    if (paymentData.jacketSize) {
+      $('r-jacket-size').textContent = paymentData.jacketSize;
+      $('r-jacket-size-row').style.display = 'flex';
+    } else {
+      $('r-jacket-size-row').style.display = 'none';
+    }
+
+    $('r-items').innerHTML = ITEMS[state.gender]
+      ? ITEMS[state.gender]
+          .filter(i => state.selected.has(i.id))
+          .map(i =>
+            `<div class="rc-row"><span class="lbl">${getItemDisplayLabel(i)}</span>` +
+            `<span class="val">${fmt(getItemEffectivePrice(i))}</span></div>`
+          ).join('')
+      : '';
+
+    goTo('screen-receipt');
   }
 
   // ── Screen 4 : receipt ────────────────────────────────
@@ -1545,17 +1693,21 @@
 
   // ── Reset ─────────────────────────────────────────────
   function startOver() {
+    if (state.unsubscribe) { state.unsubscribe(); }
     const currentUser = state.user;
     state = {
       user:             currentUser,
       gender:           null,
       selected:         new Set(),
       paidItems:        new Set(),
-      name: '', matric: '', email: '', phone: '', ref: '',
+      name: '', matric: '', email: '', phone: '',
       senatorYards:     3,
       ankaraOption:     '6yds',
       jacketSize:       null,
       _savedJacketSize: null,
+      pendingAccount:       null,
+      pendingAccountNumber: '',
+      unsubscribe:          null,
     };
     ['f-name','f-matric','f-email','f-phone'].forEach(id => $(id).value = '');
     const jacketSizeFg = $('fg-jacket-size');
