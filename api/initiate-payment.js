@@ -67,7 +67,7 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid or expired ID token' });
   }
 
-  // Create FossaPay customer
+  // Create FossaPay customer (or retrieve existing one)
   let customerId;
   try {
     const customerRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
@@ -90,11 +90,33 @@ module.exports = async function handler(req, res) {
     });
     const customerData = await customerRes.json();
     if (!customerRes.ok) {
-      return res.status(500).json({
-        error: customerData.message || 'Failed to create FossaPay customer',
+      const errMsg = customerData.message || '';
+      if (!errMsg.toLowerCase().includes('already exists')) {
+        return res.status(500).json({
+          error: errMsg || 'Failed to create FossaPay customer',
+        });
+      }
+      // Customer already exists — retrieve the list and find by email
+      const listRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
+        method: 'GET',
+        headers: { 'x-api-key': process.env.FOSSAPAY_SECRET_KEY },
       });
+      const listData = await listRes.json();
+      const customers = listData.data ?? listData;
+      const existing = Array.isArray(customers)
+        ? customers.find(
+            (c) => (c.emailAddress || c.email || '').toLowerCase() === email.toLowerCase()
+          )
+        : null;
+      if (!existing) {
+        return res.status(500).json({
+          error: 'Could not retrieve existing customer. Please contact support.',
+        });
+      }
+      customerId = existing.id;
+    } else {
+      customerId = customerData.data?.id ?? customerData.id;
     }
-    customerId = customerData.data?.id ?? customerData.id;
   } catch {
     return res.status(500).json({ error: 'FossaPay customer creation failed' });
   }
