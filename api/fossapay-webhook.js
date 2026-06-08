@@ -62,32 +62,42 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  const accountNumber      = data?.recipient?.account_number;
   const receivedAmount     = data?.amount;
   const fossaTransactionId = data?.transaction_id;
 
-  // Look up the pending payment record
-  const pendingRef  = db.collection('pendingPayments').doc(accountNumber);
-  const pendingSnap = await pendingRef.get();
+  // With the shared-account model all students pay to the same organizer account.
+  // Match the deposit to the correct pending payment by querying for the oldest
+  // pending record whose expectedAmount equals the received amount.
+  // Requires a Firestore composite index on:
+  //   pendingPayments — status ASC, expectedAmount ASC, createdAt ASC
+  let pendingRef, pendingDoc;
+  try {
+    const q = await db.collection('pendingPayments')
+      .where('status', '==', 'pending')
+      .where('expectedAmount', '==', receivedAmount)
+      .orderBy('createdAt', 'asc')
+      .limit(1)
+      .get();
 
-  if (!pendingSnap.exists) {
-    // Unknown account — not our payment; acknowledge without action
+    if (q.empty) {
+      console.warn(
+        `[Webhook] No pending payment found for amount ${receivedAmount}. ` +
+        `Event ID: ${eventId}. Acknowledging without action.`
+      );
+      return res.status(200).json({ received: true });
+    }
+
+    pendingRef = q.docs[0].ref;
+    pendingDoc = q.docs[0].data();
+  } catch (err) {
+    // Log and return 200 so FossaPay does not retry indefinitely.
+    // Investigate manually using eventId in Vercel logs.
+    console.error(`[Webhook] Firestore query failed for event ${eventId}:`, err);
     return res.status(200).json({ received: true });
   }
-
-  const pendingDoc = pendingSnap.data();
 
   // Idempotency guard — if already processed, do nothing
   if (pendingDoc.status !== 'pending') {
-    return res.status(200).json({ received: true });
-  }
-
-  // Reject amounts that differ by more than ₦1 (FossaPay may add/subtract fractions)
-  if (Math.abs(receivedAmount - pendingDoc.expectedAmount) > 1) {
-    console.error(
-      `[Webhook] Amount mismatch for ${accountNumber}: ` +
-      `received ${receivedAmount}, expected ${pendingDoc.expectedAmount}`
-    );
     return res.status(200).json({ received: true });
   }
 

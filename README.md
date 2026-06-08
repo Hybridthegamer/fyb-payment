@@ -5,7 +5,7 @@ NACOS RSU FYB Week outfit payment portal, powered by FossaPay virtual bank accou
 ## Architecture
 
 - **Frontend**: `index.html` — static page served by Vercel
-- **Backend**: `api/initiate-payment.js` — creates FossaPay customer + virtual account, stores pending record in Firestore
+- **Backend**: `api/initiate-payment.js` — reads the pre-stored organizer FossaPay account from Firestore (config/fossapay), saves the student's pending payment record keyed by their Firebase UID, and returns the shared bank account details. No FossaPay API calls happen at checkout time.
 - **Webhook**: `api/fossapay-webhook.js` — receives `deposit.completed` events from FossaPay, verifies HMAC signature, updates Firestore atomically, logs to Google Sheets
 - **Auth**: Firebase Authentication (Google Sign-In)
 - **Database**: Firebase Firestore
@@ -64,14 +64,39 @@ Ensure `payments` (read by authenticated user, write by backend only) and `pendi
 
 ---
 
+## One-Time Organizer Account Setup
+
+Run this once after the initial deployment before any student uses the portal.
+
+1. Set the SETUP_SECRET, ORGANIZER_EMAIL, and ORGANIZER_PHONE environment variables in Vercel (Settings → Environment Variables). Redeploy after adding them.
+2. Make one POST request to your live endpoint:
+     curl -X POST https://<your-vercel-domain>/api/setup-account \
+       -H "x-setup-secret: <your SETUP_SECRET value>"
+3. The response will include accountNumber, accountName, and bankName. Verify these match what you see in your FossaPay dashboard.
+4. Confirm the document config/fossapay now exists in Firestore with a valid accountNumber field.
+5. Do not call this endpoint again. It will return 409 if called a second time.
+
+Alternative: If you already have the account details from the FossaPay dashboard, manually create the Firestore document config/fossapay via the Firebase Console with these fields: accountNumber (string), accountName (string), bankName (string), bankCode (string). The setup endpoint is then unnecessary.
+
+## Firestore Index
+
+The webhook requires a composite index on pendingPayments. Create it in the Firebase Console:
+- Collection: pendingPayments
+- Fields: status (Ascending) → expectedAmount (Ascending) → createdAt (Ascending)
+- Query scope: Collection
+
+Or deploy it with: firebase deploy --only firestore:indexes
+
+---
+
 ## Payment Flow
 
 1. Student selects items → fills in details → clicks **Generate Payment Account**
 2. Frontend calls `POST /api/initiate-payment` with a verified Firebase ID token
-3. Backend verifies the token, creates a FossaPay customer + virtual account, stores a `pendingPayments` record in Firestore, and returns the bank account details
-4. Frontend shows the transfer details screen and attaches a Firestore `onSnapshot` listener on the pending document
+3. Backend verifies the token, reads the pre-stored organizer FossaPay account from config/fossapay in Firestore, saves a pendingPayments/{uid} record for the student, and returns the shared bank account details
+4. Frontend shows the transfer details screen (displaying the organizer's account name, bank, and account number) and attaches a Firestore `onSnapshot` listener on pendingPayments/{uid}
 5. Student transfers the exact amount to the virtual account
 6. FossaPay fires `deposit.completed` → `POST /api/fossapay-webhook`
-7. Webhook verifies HMAC signature, checks idempotency, verifies amount (±₦1), updates `payments/{uid}` and marks `pendingPayments/{accountNumber}` as completed — atomically
+7. Webhook verifies HMAC signature, queries pendingPayments for the oldest pending record matching the received amount exactly, checks idempotency, updates payments/{uid} and marks pendingPayments/{uid} as completed — atomically in a Firestore batch write
 8. Firestore snapshot fires on the frontend → receipt screen shown automatically
 9. Webhook also logs the transaction to Google Sheets asynchronously

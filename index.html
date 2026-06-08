@@ -912,6 +912,10 @@
 
     <div class="pd-card">
       <div class="pd-row">
+        <span class="pd-lbl">Account Name</span>
+        <span class="pd-val" id="pd-account-name">—</span>
+      </div>
+      <div class="pd-row">
         <span class="pd-lbl">Bank Name</span>
         <span class="pd-val" id="pd-bank-name">—</span>
       </div>
@@ -1134,7 +1138,7 @@
       // [FIX: silent failure — LOW] Surface the error so the user knows to keep their receipt.
       console.error('[Firestore] Save failed:', err);
       alert(
-        'Your payment was processed by Paystack, but we could not save your record to the database.\n\n' +
+        'Your payment was processed by FossaPay, but we could not save your record to the database.\n\n' +
         'Please screenshot this page and contact the FYB coordinator with your reference:\n\n' +
         reference
       );
@@ -1581,15 +1585,18 @@
   // ── Screen 4 : pending ────────────────────────────────
 
   function showPendingScreen(accountDetails) {
-    $('pd-bank-name').textContent     = accountDetails.bankName;
+    $('pd-bank-name').textContent      = accountDetails.bankName;
     $('pd-account-number').textContent = accountDetails.accountNumber;
-    $('pd-amount').textContent        = fmt(accountDetails.amount);
-    state.pendingAccountNumber        = accountDetails.accountNumber;
+    $('pd-amount').textContent         = fmt(accountDetails.amount);
+    state.pendingAccountNumber         = accountDetails.accountNumber;
+
+    const pdAccountName = document.getElementById('pd-account-name');
+    if (pdAccountName) pdAccountName.textContent = accountDetails.accountName || 'NACOS FYB 2026';
 
     goTo('screen-pending');
 
     const unsub = db.collection('pendingPayments')
-      .doc(accountDetails.accountNumber)
+      .doc(state.user.uid)
       .onSnapshot(async snap => {
         const data = snap.data();
         if (data && data.status === 'completed') {
