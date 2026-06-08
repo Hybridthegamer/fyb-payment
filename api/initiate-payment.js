@@ -77,10 +77,15 @@ module.exports = async function handler(req, res) {
         'x-api-key': process.env.FOSSAPAY_SECRET_KEY,
       },
       body: JSON.stringify({
-        name,
-        email,
-        phone,
-        metadata: { matric, gender, uid, source: 'fyb-portal' },
+      firstName:    name.split(' ')[0],
+        lastName:     name.split(' ').slice(1).join(' ') || name.split(' ')[0],
+        emailAddress: email,
+        mobileNumber: phone,
+        dateOfBirth:  '2000-01-01',
+        address:      'Rivers State University, Port Harcourt',
+        city:         'Port Harcourt',
+        country:      'Nigeria',
+        type:         'individual',
       }),
     });
     const customerData = await customerRes.json();
