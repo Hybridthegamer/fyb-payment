@@ -67,10 +67,17 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid or expired ID token' });
   }
 
+  function normalizePhone(phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('234')) return '+' + digits;
+    if (digits.startsWith('0')) return '+234' + digits.slice(1);
+    return '+' + digits;
+  }
+
   // Create FossaPay customer (or retrieve existing one)
   let customerId;
   try {
-    const customerRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
+    const createRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,7 +86,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         firstName:    'fybpayment26',
         emailAddress: email,
-        mobileNumber: phone,
+        mobileNumber: normalizePhone(phone),
         dateOfBirth:  '2000-01-01',
         address:      'Rivers State University, Port Harcourt',
         city:         'Port Harcourt',
@@ -87,37 +94,51 @@ module.exports = async function handler(req, res) {
         type:         'individual',
       }),
     });
-    const customerData = await customerRes.json();
-    if (!customerRes.ok) {
-      const errMsg = customerData.message || '';
+    const createBody = await createRes.json();
+    console.log('FossaPay create customer response:', JSON.stringify(createBody));
+    if (!createRes.ok) {
+      const errMsg = createBody.message || '';
       if (!errMsg.toLowerCase().includes('already exists')) {
         return res.status(500).json({
-          error: errMsg || 'Failed to create FossaPay customer',
+          success: false,
+          error: createBody.message || JSON.stringify(createBody),
         });
       }
       // Customer already exists — retrieve the list and find by email
       const listRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
         headers: { 'x-api-key': process.env.FOSSAPAY_SECRET_KEY },
       });
-      const customers = await listRes.json();
-      if (!Array.isArray(customers)) {
+      const listBody = await listRes.json();
+      console.log('FossaPay customer list raw response:', JSON.stringify(listBody));
+
+      let customers = [];
+      if (Array.isArray(listBody)) {
+        customers = listBody;
+      } else if (Array.isArray(listBody?.data)) {
+        customers = listBody.data;
+      } else if (Array.isArray(listBody?.customers)) {
+        customers = listBody.customers;
+      } else if (Array.isArray(listBody?.data?.customers)) {
+        customers = listBody.data.customers;
+      } else {
         return res.status(500).json({
           success: false,
-          error: 'Unexpected response from FossaPay customer list',
+          error: 'Unexpected customer list shape: ' + JSON.stringify(listBody).slice(0, 200),
         });
       }
+
       const existing = customers.find(
-        (c) => c.email?.toLowerCase() === email.toLowerCase()
+        (c) => (c.email || c.emailAddress)?.toLowerCase() === email.toLowerCase()
       );
       if (!existing) {
         return res.status(500).json({
           success: false,
-          error: 'Could not retrieve existing customer. Please contact support.',
+          error: 'Email not found in customer list. Total customers fetched: ' + customers.length,
         });
       }
       customerId = existing.id;
     } else {
-      customerId = customerData.data?.id ?? customerData.id;
+      customerId = createBody.data?.id ?? createBody.id;
     }
   } catch {
     return res.status(500).json({ error: 'FossaPay customer creation failed' });
@@ -142,9 +163,11 @@ module.exports = async function handler(req, res) {
       }
     );
     const walletData = await walletRes.json();
+    console.log('FossaPay create wallet response:', JSON.stringify(walletData));
     if (!walletRes.ok) {
       return res.status(500).json({
-        error: walletData.message || 'Failed to create FossaPay wallet',
+        success: false,
+        error: walletData.message || JSON.stringify(walletData),
       });
     }
     const w    = walletData.data ?? walletData;
