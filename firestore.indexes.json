@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "pendingPayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",         "order": "ASCENDING" },
+        { "fieldPath": "expectedAmount", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",      "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

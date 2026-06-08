@@ -1,8 +1,10 @@
+// api/initiate-payment.js
+// Reads the pre-stored organizer FossaPay account from Firestore (config/fossapay),
+// saves the student's pending payment record, and returns the shared bank account details.
+// Does NOT call the FossaPay API — that only happens once via /api/setup-account.
+//
 // Required environment variables:
-// FOSSAPAY_SECRET_KEY       — FossaPay live secret key
-// FIREBASE_PROJECT_ID       — Firebase project ID
-// FIREBASE_CLIENT_EMAIL     — Firebase service account email
-// FIREBASE_PRIVATE_KEY      — Firebase private key (with \n as literal backslash-n in Vercel dashboard)
+// FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
 
 const admin = require('firebase-admin');
 
@@ -32,33 +34,29 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   const { idToken, name, matric, email, phone, gender, items, amount, jacketSize } =
     req.body || {};
 
-  // Validate required fields
+  // Input validation
+
   if (!idToken || !name || !matric || !email || !phone || !gender || !items || amount == null) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   if (typeof amount !== 'number' || !Number.isInteger(amount) || amount <= 0) {
     return res.status(400).json({ error: 'Amount must be a positive integer in naira' });
   }
-  const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  if (!emailRx.test(email)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
   if (typeof idToken !== 'string' || idToken.length === 0) {
     return res.status(400).json({ error: 'Invalid ID token' });
   }
 
-  // Verify Firebase ID token server-side — never trust a client-supplied UID
+  // Firebase token verification — never trust a client-supplied UID
+
   let uid;
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
@@ -67,89 +65,55 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid or expired ID token' });
   }
 
-  // Create FossaPay customer
-  let customerId;
+  // Read the pre-created organizer account from Firestore
+
+  let accountNumber, accountName, bankName, bankCode;
   try {
-    const customerRes = await fetch('https://api-production.fossapay.com/api/v1/customers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.FOSSAPAY_SECRET_KEY,
-      },
-      body: JSON.stringify({
-      firstName:    name.split(' ')[0],
-        lastName:     name.split(' ').slice(1).join(' ') || name.split(' ')[0],
-        emailAddress: email,
-        mobileNumber: phone,
-        dateOfBirth:  '2000-01-01',
-        address:      'Rivers State University, Port Harcourt',
-        city:         'Port Harcourt',
-        country:      'Nigeria',
-        type:         'individual',
-      }),
-    });
-    const customerData = await customerRes.json();
-    if (!customerRes.ok) {
-      return res.status(500).json({
-        error: customerData.message || 'Failed to create FossaPay customer',
-      });
+    const configSnap = await db.collection('config').doc('fossapay').get();
+    if (!configSnap.exists) {
+      console.error('[initiate-payment] config/fossapay not found — run /api/setup-account first.');
+      return res.status(500).json({ error: 'Payment account not configured. Contact the admin.' });
     }
-    customerId = customerData.data?.id ?? customerData.id;
-  } catch {
-    return res.status(500).json({ error: 'FossaPay customer creation failed' });
+    ({ accountNumber, accountName, bankName, bankCode } = configSnap.data());
+  } catch (err) {
+    console.error('[initiate-payment] Failed to read config/fossapay:', err);
+    return res.status(500).json({ error: 'Failed to load payment configuration' });
   }
 
-  // Create FossaPay fiat wallet — returns dedicated bank account details
-  let accountNumber, bankName, bankCode, walletId;
-  try {
-    const walletRes = await fetch(
-      'https://api-production.fossapay.com/api/v1/wallets/fiat/create',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.FOSSAPAY_SECRET_KEY,
-        },
-        body: JSON.stringify({
-          customerId,
-          walletName:      'FYB - ' + name,
-          walletReference: 'FYB-' + uid + '-' + Date.now(),
-        }),
-      }
-    );
-    const walletData = await walletRes.json();
-    if (!walletRes.ok) {
-      return res.status(500).json({
-        error: walletData.message || 'Failed to create FossaPay wallet',
-      });
-    }
-    const w    = walletData.data ?? walletData;
-    accountNumber = w.accountNumber;
-    bankName      = w.bankName;
-    bankCode      = w.bankCode;
-    walletId      = w.walletId ?? w.id;
-  } catch {
-    return res.status(500).json({ error: 'FossaPay wallet creation failed' });
-  }
+  // Store pending payment — doc ID = uid
+  // The Firestore real-time listener on the client watches pendingPayments/{uid}.
+  // The webhook queries this collection by expectedAmount to find the right record.
+  // Using set() (not add()) so a returning student who abandons and restarts always
+  // overwrites their own stale pending doc rather than creating duplicates.
 
-  // Store pending payment — document ID = accountNumber so the webhook can look it up instantly
   try {
-    await db.collection('pendingPayments').doc(accountNumber).set({
+    await db.collection('pendingPayments').doc(uid).set({
       uid,
-      name, matric, email, phone, gender,
+      name,
+      matric,
+      email,
+      phone,
+      gender,
       items,
       jacketSize:     jacketSize || null,
       expectedAmount: amount,
-      walletId,
       accountNumber,
       bankName,
       bankCode,
       status:    'pending',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-  } catch {
+  } catch (err) {
+    console.error('[initiate-payment] Firestore write failed:', err);
     return res.status(500).json({ error: 'Failed to store payment record' });
   }
 
-  return res.status(200).json({ success: true, accountNumber, bankName, bankCode, amount });
+  return res.status(200).json({
+    success: true,
+    accountNumber,
+    accountName,
+    bankName,
+    bankCode,
+    amount,
+  });
 };
