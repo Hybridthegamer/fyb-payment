@@ -55,8 +55,8 @@ module.exports = async function handler(req, res) {
         'x-api-key':    process.env.FOSSAPAY_SECRET_KEY,
       },
       body: JSON.stringify({
-        firstName:    'NACOS',
-        lastName:     'FYB2026',
+        firstName:    'FYB',
+        lastName:     'Payment',
         emailAddress: process.env.ORGANIZER_EMAIL,
         mobileNumber: process.env.ORGANIZER_PHONE,
         dateOfBirth:  '2000-01-01',
