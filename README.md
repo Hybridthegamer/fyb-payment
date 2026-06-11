@@ -78,6 +78,26 @@ Run this once after the initial deployment before any student uses the portal.
 
 Alternative: If you already have the account details from the FossaPay dashboard, manually create the Firestore document config/fossapay via the Firebase Console with these fields: accountNumber (string), accountName (string), bankName (string), bankCode (string). The setup endpoint is then unnecessary.
 
+## Admin Dashboard
+
+The admin dashboard is available at /admin. Only the email address set in ADMIN_EMAIL can access it.
+
+Features:
+- Wallet balance and account summary
+- Full list of student payments with details
+- FossaPay transaction history (deposits and withdrawals)
+- Initiate withdrawals directly from the dashboard
+
+Setup:
+1. Add ADMIN_EMAIL to Vercel environment variables (Settings → Environment Variables). Set it to your Google account email.
+2. Redeploy after adding the variable.
+3. Visit https://fyb-payment.vercel.app/admin and sign in with your Google account.
+4. Any other Google account will be shown Access Denied and signed out immediately.
+
+Note on withdrawal endpoint: FossaPay's withdrawal API endpoint may differ from what is documented. If a withdrawal attempt returns an error, check Vercel logs for the raw FossaPay response (logged before parsing) and update the URL in api/admin-withdraw.js accordingly.
+
+---
+
 ## Firestore Index
 
 The webhook requires a composite index on pendingPayments. Create it in the Firebase Console:
