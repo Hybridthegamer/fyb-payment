@@ -26,6 +26,16 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
 ].filter(Boolean);
 
+// Fee calculation — must stay identical to the calculateFee function in index.html
+// Fee is always based on the subtotal (before fee), never the grand total.
+function calculateFee(subtotal) {
+  if (subtotal < 5000)  return 60;
+  if (subtotal < 10000) return 120;
+  if (subtotal < 15000) return 200;
+  if (subtotal < 25000) return 250;
+  return Math.min(Math.round(subtotal * 0.012), 1000);
+}
+
 module.exports = async function handler(req, res) {
   const origin = req.headers.origin || '';
   if (ALLOWED_ORIGINS.includes(origin)) {
@@ -86,6 +96,10 @@ module.exports = async function handler(req, res) {
   // Using set() (not add()) so a returning student who abandons and restarts always
   // overwrites their own stale pending doc rather than creating duplicates.
 
+  const subtotal      = amount;
+  const fee           = calculateFee(subtotal);
+  const totalWithFee  = subtotal + fee;
+
   try {
     await db.collection('pendingPayments').doc(uid).set({
       uid,
@@ -96,7 +110,9 @@ module.exports = async function handler(req, res) {
       gender,
       items,
       jacketSize:     jacketSize || null,
-      expectedAmount: amount,
+      subtotal,
+      fee,
+      expectedAmount: totalWithFee,
       accountNumber,
       bankName,
       bankCode,
@@ -114,6 +130,8 @@ module.exports = async function handler(req, res) {
     accountName,
     bankName,
     bankCode,
-    amount,
+    subtotal,
+    fee,
+    totalWithFee,
   });
 };

@@ -106,10 +106,12 @@ module.exports = async function handler(req, res) {
   const paymentRef = db.collection('payments').doc(pendingDoc.uid);
 
   const txn = {
-    ref:    fossaTransactionId,
-    items:  pendingDoc.items,
-    amount: receivedAmount,
-    date:   new Date().toISOString(),
+    ref:      fossaTransactionId,
+    items:    pendingDoc.items,
+    amount:   receivedAmount,
+    subtotal: pendingDoc.subtotal  ?? receivedAmount,
+    fee:      pendingDoc.fee       ?? 0,
+    date:     new Date().toISOString(),
   };
 
   const paymentUpdate = {
