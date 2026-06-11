@@ -847,6 +847,7 @@
       <div>
         <div class="tot-label">Total Selected</div>
         <div class="tot-val" id="items-total">₦0</div>
+        <div id="items-fee-note" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;"></div>
       </div>
       <button class="btn-prime" id="btn-proceed" onclick="proceedToCheckout()" disabled>
         Checkout →
@@ -928,7 +929,10 @@
       </div>
       <div class="pd-row">
         <span class="pd-lbl">Amount</span>
-        <span class="pd-amount" id="pd-amount">—</span>
+        <div>
+          <span class="pd-amount" id="pd-amount">—</span>
+          <div id="pd-fee-breakdown" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;text-align:right;"></div>
+        </div>
       </div>
     </div>
 
@@ -973,6 +977,14 @@
         <div id="r-items"></div>
       </div>
       <div class="rc-sec">
+        <div class="rc-row" id="r-subtotal-row" style="display:none;">
+          <span class="lbl">Subtotal</span>
+          <span class="val" id="r-subtotal-val">—</span>
+        </div>
+        <div class="rc-row" id="r-fee-row" style="display:none;">
+          <span class="lbl" style="font-size:12px;">Processing Fee</span>
+          <span class="val" style="color:var(--muted);font-size:12px;" id="r-fee-val">—</span>
+        </div>
         <div class="rc-row"><span class="lbl">Amount Paid</span><span class="rc-big" id="r-total">₦0</span></div>
         <div class="rc-row" style="margin-top:10px;align-items:flex-start;">
           <span class="lbl" style="flex-shrink:0;margin-right:12px;">Reference</span>
@@ -1175,6 +1187,17 @@
     return item.name;
   }
 
+  // ── Fee calculation ────────────────────────────────────
+  // Must stay identical to the calculateFee function in api/initiate-payment.js
+  // Fee is always based on the subtotal (before fee), never the grand total.
+  function calculateFee(subtotal) {
+    if (subtotal < 5000)  return 60;
+    if (subtotal < 10000) return 120;
+    if (subtotal < 15000) return 200;
+    if (subtotal < 25000) return 250;
+    return Math.min(Math.round(subtotal * 0.012), 1000);
+  }
+
   let state = {
     user:          null,
     gender:        null,
@@ -1357,18 +1380,39 @@
   }
 
   function syncTotal() {
-    const t = getTotal();
-    $('items-total').textContent = fmt(t);
+    const subtotal = getTotal();
+    $('items-total').textContent = fmt(subtotal);
+    const feeNote = document.getElementById('items-fee-note');
+    if (feeNote) {
+      if (subtotal > 0) {
+        const fee = calculateFee(subtotal);
+        feeNote.textContent = '+ ₦' + fee.toLocaleString('en-NG') + ' processing fee at checkout';
+        feeNote.style.display = 'block';
+      } else {
+        feeNote.style.display = 'none';
+      }
+    }
     $('btn-proceed').disabled = state.selected.size === 0;
   }
 
   // ── Jacket size helpers ────────────────────────────────
   function updateOrderSummary() {
-    const t = getTotal();
-    const rows = ITEMS[state.gender].filter(i => state.selected.has(i.id));
+    const subtotal = getTotal();
+    const fee      = calculateFee(subtotal);
+    const total    = subtotal + fee;
+    const rows     = ITEMS[state.gender].filter(i => state.selected.has(i.id));
     $('order-rows').innerHTML =
-      rows.map(i => `<div class="s-row"><span>${getItemDisplayLabel(i)}</span><span>${fmt(getItemEffectivePrice(i))}</span></div>`).join('') +
-      `<div class="s-row s-total"><span>Total</span><span>${fmt(t)}</span></div>`;
+      rows.map(i =>
+        `<div class="s-row"><span>${getItemDisplayLabel(i)}</span><span>${fmt(getItemEffectivePrice(i))}</span></div>`
+      ).join('') +
+      `<div class="s-row" style="border-top:1px solid var(--border-2);margin-top:4px;padding-top:10px;">` +
+        `<span style="color:var(--muted);">Subtotal</span><span>${fmt(subtotal)}</span>` +
+      `</div>` +
+      `<div class="s-row">` +
+        `<span style="color:var(--muted);font-size:12px;">Processing Fee</span>` +
+        `<span style="color:var(--muted);">+ ${fmt(fee)}</span>` +
+      `</div>` +
+      `<div class="s-row s-total"><span>Total</span><span>${fmt(total)}</span></div>`;
   }
 
   function toggleSizeGuide(e) {
@@ -1585,13 +1629,24 @@
   // ── Screen 4 : pending ────────────────────────────────
 
   function showPendingScreen(accountDetails) {
+    const displayAmount = accountDetails.totalWithFee ?? accountDetails.amount;
+
     $('pd-bank-name').textContent      = accountDetails.bankName;
     $('pd-account-number').textContent = accountDetails.accountNumber;
-    $('pd-amount').textContent         = fmt(accountDetails.amount);
+    $('pd-amount').textContent         = fmt(displayAmount);
     state.pendingAccountNumber         = accountDetails.accountNumber;
+    state.pendingAmount                = displayAmount;
 
     const pdAccountName = document.getElementById('pd-account-name');
     if (pdAccountName) pdAccountName.textContent = accountDetails.accountName || 'NACOS FYB 2026';
+
+    // Show fee breakdown below the amount on the pending screen
+    const pdFeeBreakdown = document.getElementById('pd-fee-breakdown');
+    if (pdFeeBreakdown && accountDetails.fee) {
+      pdFeeBreakdown.textContent =
+        'Includes ₦' + accountDetails.fee.toLocaleString('en-NG') + ' processing fee';
+      pdFeeBreakdown.style.display = 'block';
+    }
 
     goTo('screen-pending');
 
@@ -1605,7 +1660,13 @@
           try {
             const paySnap = await db.collection('payments').doc(state.user.uid).get();
             if (paySnap.exists) {
-              showReceiptFromFirestore(paySnap.data(), accountDetails.amount, accountDetails.accountNumber);
+              showReceiptFromFirestore(
+                paySnap.data(),
+                accountDetails.totalWithFee ?? accountDetails.amount,
+                accountDetails.accountNumber,
+                accountDetails.subtotal,
+                accountDetails.fee
+              );
             } else {
               goTo('screen-receipt');
             }
@@ -1648,12 +1709,23 @@
     });
   }
 
-  function showReceiptFromFirestore(paymentData, amount, reference) {
+  function showReceiptFromFirestore(paymentData, amount, reference, subtotal, fee) {
     $('r-name').textContent   = paymentData.name   || state.name;
     $('r-matric').textContent = paymentData.matric || state.matric;
     $('r-phone').textContent  = paymentData.phone  || state.phone;
     $('r-gender').textContent = (paymentData.gender || state.gender) === 'male' ? 'Male' : 'Female';
-    $('r-total').textContent  = fmt(amount);
+    $('r-total').textContent = fmt(amount);
+
+    // Show fee breakdown on receipt if available
+    const rFeeRow = document.getElementById('r-fee-row');
+    const rSubtotalRow = document.getElementById('r-subtotal-row');
+    if (rFeeRow && rSubtotalRow && fee && subtotal) {
+      document.getElementById('r-subtotal-val').textContent = fmt(subtotal);
+      document.getElementById('r-fee-val').textContent      = '+ ' + fmt(fee);
+      rSubtotalRow.style.display = 'flex';
+      rFeeRow.style.display      = 'flex';
+    }
+
     $('r-ref').textContent    = reference;
 
     if (paymentData.jacketSize) {
