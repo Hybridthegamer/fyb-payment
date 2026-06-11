@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FYB Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:       #1E7C3A;
+      --green-light: #2DB54F;
+      --green-glow:  rgba(30, 124, 58, 0.18);
+      --green-border:rgba(30, 124, 58, 0.45);
+      --black:       #0B0B0B;
+      --surface:     #141414;
+      --surface-2:   #1C1C1C;
+      --border:      #242424;
+      --border-2:    #2E2E2E;
+      --text:        #F4F4F4;
+      --muted:       #7A7A7A;
+      --dim:         #444;
+      --font-d: 'Bebas Neue', sans-serif;
+      --font-b: 'DM Sans', sans-serif;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--black);
+      color: var(--text);
+      font-family: var(--font-b);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ─── SCREENS ─────────────────────────── */
+    .screen { display: none; min-height: 100vh; }
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      animation: fadeUp .35s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── TOPBAR ──────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-family: var(--font-d);
+      font-size: 20px;
+      letter-spacing: 2.5px;
+      color: var(--green-light);
+    }
+    .logo-sub {
+      display: inline-block;
+      font-family: var(--font-b);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: .5px;
+      margin-left: 8px;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .user-email {
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .signout-btn {
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-family: var(--font-b);
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .signout-btn:hover { border-color: var(--green); color: var(--text); }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-family: var(--font-b);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .refresh-btn:hover { border-color: var(--green); color: var(--text); }
+    .refresh-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ─── SIGN IN SCREEN ──────────────────── */
+    #screen-signin {
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    #screen-signin::before {
+      content: '';
+      position: absolute;
+      top: -120px; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(30,124,58,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .signin-inner {
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      position: relative;
+    }
+    .g-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 11px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--green-light);
+      margin-bottom: 18px;
+    }
+    .g-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-light); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+    .signin-title {
+      font-family: var(--font-d);
+      font-size: clamp(36px, 8vw, 64px);
+      letter-spacing: 4px;
+      line-height: .95;
+      margin-bottom: 12px;
+    }
+    .signin-sub {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 300;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+    .btn-google {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .15s, box-shadow .2s;
+      width: 100%;
+      max-width: 300px;
+    }
+    .btn-google:hover {
+      border-color: var(--green);
+      background: var(--green-glow);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(30,124,58,.18);
+    }
+    .btn-google:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .signin-footer { margin-top: 28px; font-size: 12px; color: var(--dim); }
+
+    /* ─── ACCESS DENIED ───────────────────── */
+    .denied-box {
+      background: rgba(180, 30, 30, 0.10);
+      border: 1px solid rgba(220, 60, 60, 0.4);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-top: 24px;
+      text-align: left;
+    }
+    .denied-box h3 { color: #f87171; font-size: 15px; margin-bottom: 6px; }
+    .denied-box p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+    /* ─── LOADING SCREEN ──────────────────── */
+    #screen-loading {
+      justify-content: center;
+      align-items: center;
+    }
+    .loading-inner { text-align: center; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border-2);
+      border-top-color: var(--green-light);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: var(--muted); font-size: 14px; }
+
+    /* ─── DASHBOARD SCREEN ────────────────── */
+    #screen-dashboard { align-items: stretch; }
+
+    .dash-body {
+      flex: 1;
+      padding: 32px 28px 48px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ─── SECTION TITLES ──────────────────── */
+    .section-title {
+      font-family: var(--font-d);
+      font-size: 22px;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+      margin-top: 36px;
+      color: var(--text);
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    /* ─── STATS CARDS ─────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+    }
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-family: var(--font-d);
+      font-size: 28px;
+      letter-spacing: 1px;
+      color: var(--green-light);
+      line-height: 1.1;
+    }
+    .stat-value.mono {
+      font-family: 'Courier New', monospace;
+      font-size: 20px;
+      color: var(--text);
+    }
+
+    /* ─── TABLE ───────────────────────────── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      background: var(--surface-2);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-2); }
+    tbody td {
+      padding: 12px 16px;
+      color: var(--text);
+      vertical-align: top;
+    }
+    .td-muted { color: var(--muted); font-size: 12px; }
+    .td-mono { font-family: 'Courier New', monospace; font-size: 12px; }
+    .td-amount { font-family: var(--font-d); font-size: 16px; letter-spacing: .5px; color: var(--green-light); }
+    .td-amount.debit { color: #f87171; }
+    .empty-row td {
+      text-align: center;
+      color: var(--muted);
+      padding: 32px;
+      font-size: 13px;
+    }
+
+    /* ─── WITHDRAW FORM ───────────────────── */
+    .withdraw-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 28px;
+    }
+    .fg { margin-bottom: 16px; }
+    .fl {
+      display: block;
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--muted); margin-bottom: 7px;
+    }
+    .fi {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 15px;
+      color: var(--text);
+      font-family: var(--font-b); font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .fi:focus { border-color: var(--green); }
+    .fi::placeholder { color: var(--dim); }
+    .fi[type="number"]::-webkit-inner-spin-button,
+    .fi[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+    .btn-withdraw {
+      background: var(--green);
+      color: #fff;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      margin-top: 8px;
+    }
+    .btn-withdraw:hover { background: var(--green-light); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(30,124,58,.3); }
+    .btn-withdraw:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .withdraw-result {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+      display: none;
+    }
+    .withdraw-result.success {
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      color: var(--green-light);
+      display: block;
+    }
+    .withdraw-result.error {
+      background: rgba(180, 30, 30, 0.10);
+      border: 1px solid rgba(220, 60, 60, 0.4);
+      color: #f87171;
+      display: block;
+    }
+
+    /* ─── ERROR BANNER ────────────────────── */
+    .error-banner {
+      background: rgba(180, 30, 30, 0.10);
+      border: 1px solid rgba(220, 60, 60, 0.4);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #f87171;
+      line-height: 1.5;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .error-banner.visible { display: block; }
+
+    /* ─── MOBILE ──────────────────────────── */
+    @media (max-width: 700px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .topbar { padding: 15px 16px; }
+      .dash-body { padding: 20px 16px 40px; }
+      .user-email { display: none; }
+    }
+    @media (max-width: 400px) {
+      .stats-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ SIGN IN ═══════════════════════════════════════════════════════ -->
+<div class="screen active" id="screen-signin">
+  <div class="signin-inner">
+    <div class="g-pill"><span class="g-dot"></span> NACOS RSU · FYB Admin</div>
+    <h1 class="signin-title">ADMIN<br>DASHBOARD</h1>
+    <p class="signin-sub">Sign in with the organizer Google account<br>to access the admin dashboard.</p>
+    <button class="btn-google" id="btn-google-signin">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="denied-box" id="denied-box" style="display:none;">
+      <h3>Access Denied</h3>
+      <p id="denied-msg">Your account is not authorized to access the admin dashboard. You have been signed out.</p>
+    </div>
+    <p class="signin-footer">Restricted to the organizer account only</p>
+  </div>
+</div>
+
+<!-- ══ LOADING ════════════════════════════════════════════════════════ -->
+<div class="screen" id="screen-loading">
+  <div class="loading-inner">
+    <div class="spinner"></div>
+    <p class="loading-text" id="loading-text">Loading dashboard data...</p>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ══════════════════════════════════════════════════════ -->
+<div class="screen" id="screen-dashboard">
+  <header class="topbar">
+    <div class="logo">FYB ADMIN <span class="logo-sub">Dashboard</span></div>
+    <div class="topbar-right">
+      <div class="user-chip" id="admin-user-chip"></div>
+      <button class="refresh-btn" id="refresh-btn">Refresh</button>
+      <button class="signout-btn" id="signout-btn">Sign out</button>
+    </div>
+  </header>
+  <div class="dash-body">
+    <div class="error-banner" id="error-banner"></div>
+
+    <!-- SECTION 1: Stats -->
+    <h2 class="section-title">OVERVIEW</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Wallet Balance</div>
+        <div class="stat-value" id="stat-balance">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Collected</div>
+        <div class="stat-value" id="stat-total-collected">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Payments Count</div>
+        <div class="stat-value" id="stat-payments-count">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Account Number</div>
+        <div class="stat-value mono" id="stat-account-number">—</div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: Student Payments -->
+    <h2 class="section-title">STUDENT PAYMENTS</h2>
+    <div class="table-wrap">
+      <table id="student-payments-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Matric</th>
+            <th>Gender</th>
+            <th>Items Paid</th>
+            <th>Total Paid</th>
+            <th>Phone</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="student-payments-tbody">
+          <tr class="empty-row"><td colspan="7">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SECTION 3: FossaPay Transactions -->
+    <h2 class="section-title">FOSSAPAY TRANSACTIONS</h2>
+    <div class="table-wrap">
+      <table id="fossapay-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Reference</th>
+            <th>Description / Narration</th>
+          </tr>
+        </thead>
+        <tbody id="fossapay-tbody">
+          <tr class="empty-row"><td colspan="5">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SECTION 4: Withdraw Funds -->
+    <h2 class="section-title">WITHDRAW FUNDS</h2>
+    <div class="withdraw-card">
+      <div class="fg">
+        <label class="fl" for="w-amount">Amount (₦)</label>
+        <input class="fi" type="number" id="w-amount" placeholder="e.g. 50000" min="1" step="1" />
+      </div>
+      <div class="fg">
+        <label class="fl" for="w-bank-code">Destination Bank Code</label>
+        <input class="fi" type="text" id="w-bank-code" placeholder="e.g. 044 for Access Bank" />
+      </div>
+      <div class="fg">
+        <label class="fl" for="w-account-number">Destination Account Number</label>
+        <input class="fi" type="text" id="w-account-number" placeholder="e.g. 0123456789" />
+      </div>
+      <div class="fg">
+        <label class="fl" for="w-narration">Narration</label>
+        <input class="fi" type="text" id="w-narration" placeholder='e.g. FYB 2026 Committee Funds' />
+      </div>
+      <button class="btn-withdraw" id="btn-withdraw">Withdraw</button>
+      <div class="withdraw-result" id="withdraw-result"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Firebase init ─────────────────────────────────────────
+  firebase.initializeApp({
+    apiKey:     'AIzaSyBXInhdzhY8QQ6G7dAYfvtEOdzza8mwVCs',
+    authDomain: 'fyb-payment.firebaseapp.com',
+    projectId:  'fyb-payment',
+    appId:      '1:614631046833:web:9f0f1b7e17f10030c12c90',
+  });
+  const auth = firebase.auth();
+
+  // ── Screen helpers ────────────────────────────────────────
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Auth state ────────────────────────────────────────────
+  let currentUser = null;
+
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      currentUser = user;
+      showScreen('screen-loading');
+      loadDashboard();
+    } else {
+      currentUser = null;
+      showScreen('screen-signin');
+    }
+  });
+
+  // ── Sign in ───────────────────────────────────────────────
+  document.getElementById('btn-google-signin').addEventListener('click', () => {
+    const btn = document.getElementById('btn-google-signin');
+    btn.disabled = true;
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(err => {
+      console.error('[Auth]', err);
+      alert('Sign-in failed. Please try again.');
+      btn.disabled = false;
+    });
+  });
+
+  // ── Sign out ──────────────────────────────────────────────
+  document.getElementById('signout-btn').addEventListener('click', () => auth.signOut());
+
+  function showDenied(msg) {
+    auth.signOut();
+    const box = document.getElementById('denied-box');
+    const msgEl = document.getElementById('denied-msg');
+    box.style.display = 'block';
+    msgEl.textContent = msg || 'Your account is not authorized to access the admin dashboard. You have been signed out.';
+    showScreen('screen-signin');
+    document.getElementById('btn-google-signin').disabled = false;
+  }
+
+  // ── Update user chip ──────────────────────────────────────
+  function updateUserChip(user) {
+    const chip = document.getElementById('admin-user-chip');
+    chip.innerHTML = '';
+    const initial = (user.displayName || user.email || '?')[0].toUpperCase();
+
+    const avatar = document.createElement('div');
+    avatar.className = 'user-avatar';
+    avatar.textContent = initial;
+
+    const emailSpan = document.createElement('span');
+    emailSpan.className = 'user-email';
+    emailSpan.textContent = user.email || '';
+
+    chip.appendChild(avatar);
+    chip.appendChild(emailSpan);
+  }
+
+  // ── Format helpers ────────────────────────────────────────
+  function fmt(n) {
+    if (n == null || isNaN(Number(n))) return '—';
+    return '₦' + Number(n).toLocaleString('en-NG');
+  }
+  function fmtDate(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }); }
+    catch { return d; }
+  }
+
+  // ── Load dashboard ────────────────────────────────────────
+  async function loadDashboard() {
+    document.getElementById('loading-text').textContent = 'Loading dashboard data...';
+    showScreen('screen-loading');
+    document.getElementById('error-banner').classList.remove('visible');
+
+    let idToken;
+    try {
+      idToken = await currentUser.getIdToken(true);
+    } catch (err) {
+      showDenied('Authentication error. Please try signing in again.');
+      return;
+    }
+
+    let data;
+    try {
+      const res = await fetch('/api/admin-transactions', {
+        headers: { 'Authorization': 'Bearer ' + idToken },
+      });
+      data = await res.json();
+
+      if (res.status === 403) {
+        showDenied('Access Denied: ' + (data.error || 'Your account is not authorized.'));
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to load dashboard data (status ' + res.status + ')');
+      }
+    } catch (err) {
+      const banner = document.getElementById('error-banner');
+      banner.textContent = 'Error loading dashboard: ' + err.message;
+      banner.classList.add('visible');
+      showScreen('screen-dashboard');
+      updateUserChip(currentUser);
+      return;
+    }
+
+    updateUserChip(currentUser);
+    renderDashboard(data);
+    showScreen('screen-dashboard');
+  }
+
+  // ── Render dashboard ──────────────────────────────────────
+  function renderDashboard(data) {
+    const { walletInfo, transactions, studentPayments, accountNumber } = data;
+
+    // Stats
+    const balance = walletInfo?.data?.balance ?? walletInfo?.balance ?? null;
+    document.getElementById('stat-balance').textContent =
+      balance != null ? fmt(balance) : 'See logs';
+
+    const totalCollected = (studentPayments || []).reduce((sum, p) => sum + (Number(p.totalPaid) || 0), 0);
+    document.getElementById('stat-total-collected').textContent = fmt(totalCollected);
+    document.getElementById('stat-payments-count').textContent = (studentPayments || []).length;
+    document.getElementById('stat-account-number').textContent = accountNumber || '—';
+
+    // Student payments table
+    renderStudentPayments(studentPayments || []);
+
+    // FossaPay transactions table
+    const txList =
+      transactions?.data?.transactions ??
+      transactions?.data ??
+      transactions?.transactions ??
+      null;
+    renderFossaPayTransactions(txList);
+  }
+
+  function renderStudentPayments(payments) {
+    const tbody = document.getElementById('student-payments-tbody');
+    tbody.innerHTML = '';
+
+    if (!payments.length) {
+      const tr = document.createElement('tr');
+      tr.className = 'empty-row';
+      tr.innerHTML = '<td colspan="7">No payments yet</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+
+    payments.forEach(p => {
+      const paidItems = Array.isArray(p.paidItems) ? p.paidItems.join(', ') : (p.paidItems || '—');
+
+      const txns = Array.isArray(p.transactions) ? p.transactions : [];
+      let lastDate = '—';
+      if (txns.length) {
+        const dates = txns.map(t => t.date).filter(Boolean).sort();
+        lastDate = dates.length ? fmtDate(dates[dates.length - 1]) : '—';
+      }
+
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td');
+      tdName.textContent = p.name || '—';
+      const tdMatric = document.createElement('td');
+      tdMatric.className = 'td-muted';
+      tdMatric.textContent = p.matric || '—';
+      const tdGender = document.createElement('td');
+      tdGender.className = 'td-muted';
+      tdGender.textContent = p.gender ? (p.gender.charAt(0).toUpperCase() + p.gender.slice(1)) : '—';
+      const tdItems = document.createElement('td');
+      tdItems.className = 'td-muted';
+      tdItems.textContent = paidItems;
+      const tdTotal = document.createElement('td');
+      tdTotal.className = 'td-amount';
+      tdTotal.textContent = fmt(p.totalPaid);
+      const tdPhone = document.createElement('td');
+      tdPhone.className = 'td-muted td-mono';
+      tdPhone.textContent = p.phone || '—';
+      const tdDate = document.createElement('td');
+      tdDate.className = 'td-muted';
+      tdDate.textContent = lastDate;
+
+      tr.append(tdName, tdMatric, tdGender, tdItems, tdTotal, tdPhone, tdDate);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderFossaPayTransactions(txList) {
+    const tbody = document.getElementById('fossapay-tbody');
+    tbody.innerHTML = '';
+
+    if (!Array.isArray(txList) || !txList.length) {
+      const tr = document.createElement('tr');
+      tr.className = 'empty-row';
+      tr.innerHTML = '<td colspan="5">Transaction data unavailable — check Vercel logs for raw FossaPay response.</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+
+    txList.forEach(tx => {
+      const type = tx.type || tx.transactionType || '—';
+      const amount = tx.amount ?? tx.value ?? null;
+      const isDebit = String(type).toLowerCase().includes('debit') || String(type).toLowerCase().includes('withdraw');
+      const ref = tx.reference || tx.transactionReference || tx.id || '—';
+      const desc = tx.narration || tx.description || tx.remark || '—';
+      const date = fmtDate(tx.date || tx.createdAt || tx.transactionDate);
+
+      const tr = document.createElement('tr');
+      const tdDate = document.createElement('td');
+      tdDate.className = 'td-muted';
+      tdDate.textContent = date;
+      const tdType = document.createElement('td');
+      tdType.className = 'td-muted';
+      tdType.textContent = type;
+      const tdAmount = document.createElement('td');
+      tdAmount.className = 'td-amount' + (isDebit ? ' debit' : '');
+      tdAmount.textContent = amount != null ? fmt(amount) : '—';
+      const tdRef = document.createElement('td');
+      tdRef.className = 'td-mono td-muted';
+      tdRef.textContent = ref;
+      const tdDesc = document.createElement('td');
+      tdDesc.className = 'td-muted';
+      tdDesc.textContent = desc;
+
+      tr.append(tdDate, tdType, tdAmount, tdRef, tdDesc);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ── Refresh button ────────────────────────────────────────
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    if (!currentUser) return;
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+    loadDashboard().finally(() => {
+      btn.disabled = false;
+      btn.textContent = 'Refresh';
+    });
+  });
+
+  // ── Withdraw ──────────────────────────────────────────────
+  document.getElementById('btn-withdraw').addEventListener('click', async () => {
+    const amountRaw = document.getElementById('w-amount').value.trim();
+    const bankCode  = document.getElementById('w-bank-code').value.trim();
+    const accNum    = document.getElementById('w-account-number').value.trim();
+    const narration = document.getElementById('w-narration').value.trim();
+    const resultEl  = document.getElementById('withdraw-result');
+
+    resultEl.className = 'withdraw-result';
+    resultEl.style.display = 'none';
+
+    if (!amountRaw || !bankCode || !accNum || !narration) {
+      resultEl.className = 'withdraw-result error';
+      resultEl.textContent = 'Please fill in all fields before withdrawing.';
+      return;
+    }
+
+    const amount = Number(amountRaw);
+    if (!amount || amount <= 0) {
+      resultEl.className = 'withdraw-result error';
+      resultEl.textContent = 'Amount must be a positive number.';
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Confirm withdrawal:\n\n` +
+      `Amount: ₦${amount.toLocaleString('en-NG')}\n` +
+      `Bank Code: ${bankCode}\n` +
+      `Account: ${accNum}\n` +
+      `Narration: ${narration}\n\n` +
+      `This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    const btn = document.getElementById('btn-withdraw');
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+
+    try {
+      const idToken = await currentUser.getIdToken(true);
+      const res = await fetch('/api/admin-withdraw', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': 'Bearer ' + idToken,
+        },
+        body: JSON.stringify({ amount, destinationBankCode: bankCode, destinationAccountNumber: accNum, narration }),
+      });
+      const data = await res.json();
+
+      if (res.status === 403) {
+        showDenied(data.error || 'Access denied.');
+        return;
+      }
+
+      if (!res.ok || !data.success) {
+        resultEl.className = 'withdraw-result error';
+        resultEl.textContent = 'Withdrawal failed: ' + (data.error || JSON.stringify(data.details || data));
+      } else {
+        resultEl.className = 'withdraw-result success';
+        resultEl.textContent = 'Withdrawal initiated successfully. Reference: ' +
+          (data.result?.reference || data.result?.data?.reference || JSON.stringify(data.result));
+        document.getElementById('w-amount').value = '';
+        document.getElementById('w-bank-code').value = '';
+        document.getElementById('w-account-number').value = '';
+        document.getElementById('w-narration').value = '';
+      }
+    } catch (err) {
+      resultEl.className = 'withdraw-result error';
+      resultEl.textContent = 'Request failed: ' + err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Withdraw';
+    }
+  });
+</script>
+</body>
+</html>
