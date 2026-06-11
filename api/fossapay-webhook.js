@@ -5,9 +5,6 @@
 // FIREBASE_PRIVATE_KEY      — Firebase private key (with \n as literal backslash-n in Vercel dashboard)
 // GOOGLE_SHEETS_WEBHOOK     — Google Apps Script web app URL
 
-// Disable Vercel's automatic body parsing so we can read the raw body for HMAC verification
-module.exports.config = { api: { bodyParser: false } };
-
 const crypto = require('crypto');
 const admin  = require('firebase-admin');
 
@@ -35,6 +32,9 @@ module.exports = async function handler(req, res) {
     req.on('end', resolve);
     req.on('error', reject);
   });
+
+  // Temporary: log all headers to confirm correct signature header name — remove after first successful webhook
+  console.log('[Webhook] Incoming headers:', JSON.stringify(req.headers));
 
   // Verify HMAC-SHA256 signature — reject anything that doesn't match
   const signature = req.headers['x-fossapay-signature'] || '';
@@ -65,6 +65,11 @@ module.exports = async function handler(req, res) {
   const receivedAmount     = data?.amount;
   const fossaTransactionId = data?.transaction_id;
 
+  // FossaPay sends net credited amount with up to 2 decimal places.
+  // expectedAmount in Firestore is stored as a rounded integer (Math.round of net).
+  // Round receivedAmount to the nearest integer before querying to ensure match.
+  const queryAmount = Math.round(receivedAmount);
+
   // With the shared-account model all students pay to the same organizer account.
   // Match the deposit to the correct pending payment by querying for the oldest
   // pending record whose expectedAmount equals the received amount.
@@ -74,7 +79,7 @@ module.exports = async function handler(req, res) {
   try {
     const q = await db.collection('pendingPayments')
       .where('status', '==', 'pending')
-      .where('expectedAmount', '==', receivedAmount)
+      .where('expectedAmount', '==', queryAmount)
       .orderBy('createdAt', 'asc')
       .limit(1)
       .get();
@@ -156,3 +161,5 @@ module.exports = async function handler(req, res) {
 
   return res.status(200).json({ received: true });
 };
+
+module.exports.config = { api: { bodyParser: false } };
