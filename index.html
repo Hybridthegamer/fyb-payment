@@ -1195,7 +1195,7 @@
     if (subtotal < 10000) return 120;
     if (subtotal < 15000) return 200;
     if (subtotal < 25000) return 250;
-    return Math.min(Math.round(subtotal * 0.012), 1000);
+    return Math.min(Math.ceil(subtotal / 0.988) - subtotal, 1000);
   }
 
   let state = {

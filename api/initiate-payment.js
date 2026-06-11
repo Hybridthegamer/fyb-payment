@@ -33,7 +33,10 @@ function calculateFee(subtotal) {
   if (subtotal < 10000) return 120;
   if (subtotal < 15000) return 200;
   if (subtotal < 25000) return 250;
-  return Math.min(Math.round(subtotal * 0.012), 1000);
+  // Correct formula: fee must cover FossaPay's 1.2% charge on the GROSS amount.
+  // gross = subtotal + fee, net = gross * 0.988. For net >= subtotal:
+  // fee = Math.ceil(subtotal / 0.988) - subtotal
+  return Math.min(Math.ceil(subtotal / 0.988) - subtotal, 1000);
 }
 
 module.exports = async function handler(req, res) {
@@ -112,7 +115,8 @@ module.exports = async function handler(req, res) {
       jacketSize:     jacketSize || null,
       subtotal,
       fee,
-      expectedAmount: totalWithFee,
+      displayAmount:  totalWithFee,
+      expectedAmount: Math.round(totalWithFee * 0.988),
       accountNumber,
       bankName,
       bankCode,
