@@ -116,7 +116,7 @@ module.exports = async function handler(req, res) {
       subtotal,
       fee,
       displayAmount:  totalWithFee,
-      expectedAmount: Math.round(totalWithFee * 0.988),
+      expectedAmount: subtotal,
       accountNumber,
       bankName,
       bankCode,
