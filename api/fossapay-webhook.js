@@ -21,6 +21,9 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 module.exports = async function handler(req, res) {
+  console.log('[Webhook Debug] req.body type at entry:', typeof req.body);
+  console.log('[Webhook Debug] req.body defined:', req.body !== undefined);
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -33,19 +36,37 @@ module.exports = async function handler(req, res) {
     req.on('error', reject);
   });
 
+  console.log('[Webhook Debug] rawBody length:', rawBody.length);
+  console.log('[Webhook Debug] rawBody first 100 chars:', rawBody.substring(0, 100));
+
   // Temporary: log all headers to confirm correct signature header name — remove after first successful webhook
   console.log('[Webhook] Incoming headers:', JSON.stringify(req.headers));
 
   // Verify HMAC-SHA256 signature — reject anything that doesn't match
+  const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
   const signature = req.headers['x-fossapay-signature'] || '';
   const hash = crypto
-    .createHmac('sha256', process.env.FOSSAPAY_WEBHOOK_SECRET)
+    .createHmac('sha256', webhookSecret)
     .update(rawBody)
     .digest('hex');
 
-  if (hash !== signature) {
+  console.log('[Webhook Debug] Computed hash:', hash.substring(0, 20) + '...');
+  console.log('[Webhook Debug] Received sig: ', signature ? signature.substring(0, 20) + '...' : 'NONE');
+  console.log('[Webhook Debug] Match:', hash === signature);
+  console.log('[Webhook Debug] webhookSecret length:', webhookSecret.length);
+
+  // TEMPORARY bypass — set SKIP_SIG_VERIFY=true in Vercel env vars to skip
+  // signature check while diagnosing. Remove this env var once signature
+  // verification is confirmed working.
+  const skipVerify = process.env.SKIP_SIG_VERIFY === 'true';
+
+  if (!skipVerify && hash !== signature) {
     console.error('[Webhook] Signature mismatch — possible tampered or replayed request');
     return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  if (skipVerify) {
+    console.warn('[Webhook] WARNING: Signature verification bypassed via SKIP_SIG_VERIFY env var');
   }
 
   let payload;
