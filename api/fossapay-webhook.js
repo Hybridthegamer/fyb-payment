@@ -76,19 +76,33 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON body' });
   }
 
-  const { event, event_id: eventId, data } = payload;
+  // FossaPay sends camelCase field names — eventType, eventId, not event, event_id
+  const eventType = payload.eventType || payload.event;
+  const eventId   = payload.eventId   || payload.event_id;
+  const data      = payload.data;
+
+  console.log('[Webhook Debug] eventType:', eventType);
+  console.log('[Webhook Debug] eventId:', eventId);
+  console.log('[Webhook Debug] data keys:', data ? Object.keys(data).join(', ') : 'null');
 
   // Only process deposit.completed — acknowledge everything else immediately
-  if (event !== 'deposit.completed') {
+  if (eventType !== 'deposit.completed') {
+    console.log('[Webhook Debug] Ignoring non-deposit event:', eventType);
     return res.status(200).json({ received: true });
   }
 
   const receivedAmount     = data?.amount;
-  const fossaTransactionId = data?.transaction_id;
+  // FossaPay uses camelCase — try both forms
+  const fossaTransactionId = data?.transactionId || data?.transaction_id;
+  console.log('[Webhook Debug] fossaTransactionId:', fossaTransactionId);
+  console.log('[Webhook Debug] receivedAmount:', data?.amount);
 
   // FossaPay sends net credited amount with up to 2 decimal places.
   // expectedAmount in Firestore is stored as a rounded integer (Math.round of net).
   // Round receivedAmount to the nearest integer before querying to ensure match.
+  console.log('[Webhook Debug] Full data object keys:', data ? Object.keys(data).join(', ') : 'null');
+  console.log('[Webhook Debug] data.amount:', data?.amount);
+  console.log('[Webhook Debug] queryAmount:', Math.round(data?.amount));
   const queryAmount = Math.round(receivedAmount);
 
   // With the shared-account model all students pay to the same organizer account.
