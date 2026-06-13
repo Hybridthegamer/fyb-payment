@@ -42,41 +42,7 @@ module.exports = async function handler(req, res) {
   // Temporary: log all headers to confirm correct signature header name — remove after first successful webhook
   console.log('[Webhook] Incoming headers:', JSON.stringify(req.headers));
 
-  // Verify HMAC-SHA256 signature — reject anything that doesn't match
-  const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
-  const receivedSig = req.headers['x-fossapay-signature'] || '';
-  const rawBodyString = rawBody;
-  const hashOfRaw = crypto.createHmac('sha256', webhookSecret).update(rawBodyString).digest('hex');
-  let hashOfStringified = '';
-  try {
-    const parsedBodyForSig = JSON.parse(rawBodyString);
-    hashOfStringified = crypto.createHmac('sha256', webhookSecret).update(JSON.stringify(parsedBodyForSig)).digest('hex');
-  } catch (_) {
-    // non-JSON body — only rawBody hash will be checked
-  }
-  const sigMatch = (hashOfRaw === receivedSig) || (hashOfStringified === receivedSig);
-
-  console.log('[Webhook Debug] hashOfRaw:', hashOfRaw.substring(0, 20) + '...');
-  console.log('[Webhook Debug] hashOfStringified:', hashOfStringified ? hashOfStringified.substring(0, 20) + '...' : 'N/A');
-  console.log('[Webhook Debug] Received sig: ', receivedSig ? receivedSig.substring(0, 20) + '...' : 'NONE');
-  console.log('[Webhook Debug] hashOfRaw match:', hashOfRaw === receivedSig);
-  console.log('[Webhook Debug] hashOfStringified match:', hashOfStringified === receivedSig);
-  console.log('[Webhook Debug] webhookSecret length:', webhookSecret.length);
-
-  // TEMPORARY bypass — set SKIP_SIG_VERIFY=true in Vercel env vars to skip
-  // signature check while diagnosing. Remove this env var once signature
-  // verification is confirmed working.
-  const skipVerify = process.env.SKIP_SIG_VERIFY === 'true';
-
-  if (!skipVerify && !sigMatch) {
-    console.error('[Webhook] Signature mismatch — possible tampered or replayed request');
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-
-  if (skipVerify) {
-    console.warn('[Webhook] WARNING: Signature verification bypassed via SKIP_SIG_VERIFY env var');
-  }
-
+  // Parse body once — needed for sig verification and event processing
   let payload;
   try {
     payload = JSON.parse(rawBody);
@@ -84,10 +50,33 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON body' });
   }
 
+  // Verify HMAC-SHA256 signature — sign only the `data` property
+  const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
+  const receivedSig = req.headers['x-fossapay-signature'] || '';
+  const data = payload.data;
+  const dataString = JSON.stringify(data);
+  const hash = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(dataString)
+    .digest('hex');
+  const match = crypto.timingSafeEqual(
+    Buffer.from(hash, 'hex'),
+    Buffer.from(receivedSig, 'hex')
+  );
+
+  console.log('[Webhook Debug] dataString length:', dataString.length);
+  console.log('[Webhook Debug] dataString first 100 chars:', dataString.substring(0, 100));
+  console.log('[Webhook Debug] Received sig:', receivedSig ? receivedSig.substring(0, 20) + '...' : 'NONE');
+  console.log('[Webhook Debug] webhookSecret length:', webhookSecret.length);
+
+  if (!match) {
+    console.error('[Webhook] Signature mismatch — possible tampered or replayed request');
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
   // FossaPay sends camelCase field names — eventType, eventId, not event, event_id
   const eventType = payload.eventType || payload.event;
   const eventId   = payload.eventId   || payload.event_id;
-  const data      = payload.data;
 
   console.log('[Webhook Debug] eventType:', eventType);
   console.log('[Webhook Debug] eventId:', eventId);
@@ -198,23 +187,36 @@ module.exports = async function handler(req, res) {
 
   await batch.commit();
 
-  // Log to Google Sheets — fire-and-forget, don't let this delay the 200 response
-  fetch(process.env.GOOGLE_SHEETS_WEBHOOK, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      timestamp:  new Date().toLocaleString('en-NG'),
-      name:       pendingDoc.name,
-      matric:     pendingDoc.matric,
-      email:      pendingDoc.email,
-      phone:      pendingDoc.phone,
-      gender:     pendingDoc.gender,
-      items:      pendingDoc.items.map(i => i.name).join(', '),
-      total:      receivedAmount,
-      reference:  fossaTransactionId,
-      jacketSize: pendingDoc.jacketSize || 'N/A',
-    }),
-  }).catch(err => console.error('[Webhook] Sheets log failed:', err));
+  try {
+    const sheetsPayload = {
+      timestamp: new Date().toISOString(),
+      name: pendingDoc.name,
+      matric: pendingDoc.matric,
+      email: pendingDoc.email,
+      phone: pendingDoc.phone,
+      gender: pendingDoc.gender,
+      items: (pendingDoc.items || []).map(i => i.name).join(', '),
+      subtotal: pendingDoc.subtotal,
+      fee: pendingDoc.fee,
+      totalPaid: pendingDoc.displayAmount,
+      transactionRef: fossaTransactionId,
+      paidAt: new Date().toISOString()
+    };
+
+    await Promise.race([
+      fetch(process.env.GOOGLE_SHEETS_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sheetsPayload)
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Sheets timeout')), 5000)
+      )
+    ]);
+    console.log('[Sheets] Logged successfully');
+  } catch (err) {
+    console.error('[Sheets] Logging failed:', err.message);
+  }
 
   return res.status(200).json({ received: true });
 };

@@ -944,6 +944,15 @@
       This page updates automatically when your payment is confirmed. Keep it open.
     </p>
 
+    <button id="manualCheckBtn" onclick="handleManualPaymentCheck()"
+      style="margin-top:24px; width:100%; padding:14px; background:var(--green); color:#000;
+      border:none; border-radius:8px; font-family:'Bebas Neue',sans-serif;
+      font-size:1.1rem; letter-spacing:1px; cursor:pointer;">
+      I'VE MADE THE PAYMENT
+    </button>
+    <p id="manualCheckMsg" style="text-align:center; font-size:0.8rem;
+      color:var(--text-muted,#888); margin-top:8px; min-height:20px;"></p>
+
     <button class="btn-back-sec" onclick="goBackFromPending()">← Go Back</button>
   </div>
 </div>
@@ -1028,7 +1037,18 @@
       state.user = user;
       updateUserChips(user);
       const onSignIn = document.getElementById('screen-signin').classList.contains('active');
-      if (_firstAuthCheck || onSignIn) goTo('screen-gender');
+      if (_firstAuthCheck || onSignIn) {
+        db.collection('pendingPayments').doc(user.uid).get().then(doc => {
+          if (doc.exists && doc.data().status === 'completed') {
+            showReceiptScreen(doc.data());
+          } else {
+            goTo('screen-gender');
+          }
+        }).catch(err => {
+          console.error('[Auth] Paid check error:', err);
+          goTo('screen-gender');
+        });
+      }
     } else {
       state.user = null;
       goTo('screen-signin');
@@ -1650,33 +1670,27 @@
 
     goTo('screen-pending');
 
-    const unsub = db.collection('pendingPayments')
-      .doc(state.user.uid)
-      .onSnapshot(async snap => {
-        const data = snap.data();
-        if (data && data.status === 'completed') {
-          unsub();
-          state.unsubscribe = null;
-          try {
-            const paySnap = await db.collection('payments').doc(state.user.uid).get();
-            if (paySnap.exists) {
-              showReceiptFromFirestore(
-                paySnap.data(),
-                accountDetails.totalWithFee ?? accountDetails.amount,
-                accountDetails.accountNumber,
-                accountDetails.subtotal,
-                accountDetails.fee
-              );
-            } else {
-              goTo('screen-receipt');
-            }
-          } catch {
-            goTo('screen-receipt');
+    // Check immediately in case webhook already fired while page was backgrounded
+    db.collection('pendingPayments').doc(state.user.uid).get().then(existingDoc => {
+      if (existingDoc.exists && existingDoc.data().status === 'completed') {
+        showReceiptScreen(existingDoc.data());
+        return;
+      }
+      // Otherwise set up real-time listener
+      const unsubscribe = db.collection('pendingPayments').doc(state.user.uid)
+        .onSnapshot(doc => {
+          if (doc.exists && doc.data().status === 'completed') {
+            unsubscribe();
+            state.unsubscribe = null;
+            showReceiptScreen(doc.data());
           }
-        }
-      }, err => console.error('[Firestore listener]', err));
-
-    state.unsubscribe = unsub;
+        }, err => {
+          console.error('[onSnapshot] Listener error:', err);
+        });
+      state.unsubscribe = unsubscribe;
+    }).catch(err => {
+      console.error('[onSnapshot] Initial check error:', err);
+    });
   }
 
   function goBackFromPending() {
@@ -1685,6 +1699,42 @@
       state.unsubscribe = null;
     }
     goTo('screen-checkout');
+  }
+
+  async function handleManualPaymentCheck() {
+    const btn = document.getElementById('manualCheckBtn');
+    const msg = document.getElementById('manualCheckMsg');
+
+    if (!state.user) {
+      msg.textContent = 'Please sign in first.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'CHECKING...';
+    msg.textContent = '';
+
+    try {
+      const doc = await db.collection('pendingPayments').doc(state.user.uid).get();
+
+      if (doc.exists && doc.data().status === 'completed') {
+        const data = doc.data();
+        showReceiptScreen(data);
+      } else if (doc.exists && doc.data().status === 'pending') {
+        msg.textContent = 'Payment not confirmed yet. Wait a moment and try again.';
+        btn.textContent = "I'VE MADE THE PAYMENT";
+        btn.disabled = false;
+      } else {
+        msg.textContent = 'No pending payment found. Please go back and generate a payment account first.';
+        btn.textContent = "I'VE MADE THE PAYMENT";
+        btn.disabled = false;
+      }
+    } catch (err) {
+      console.error('Manual check error:', err);
+      msg.textContent = 'Could not check payment status. Check your connection.';
+      btn.textContent = "I'VE MADE THE PAYMENT";
+      btn.disabled = false;
+    }
   }
 
   function copyAccountNumber() {
@@ -1707,6 +1757,42 @@
       btn.textContent = 'Copied ✓';
       setTimeout(reset, 2000);
     });
+  }
+
+  function showReceiptScreen(data) {
+    $('r-name').textContent   = data.name   || '';
+    $('r-matric').textContent = data.matric || '';
+    $('r-phone').textContent  = data.phone  || '';
+    $('r-gender').textContent = (data.gender === 'male') ? 'Male' : 'Female';
+    $('r-total').textContent  = fmt(data.displayAmount || 0);
+    $('r-ref').textContent    = data.transactionRef || '—';
+
+    const rFeeRow = document.getElementById('r-fee-row');
+    const rSubtotalRow = document.getElementById('r-subtotal-row');
+    if (rFeeRow && rSubtotalRow) {
+      if (data.fee && data.subtotal) {
+        document.getElementById('r-subtotal-val').textContent = fmt(data.subtotal);
+        document.getElementById('r-fee-val').textContent      = '+ ' + fmt(data.fee);
+        rSubtotalRow.style.display = 'flex';
+        rFeeRow.style.display      = 'flex';
+      } else {
+        rSubtotalRow.style.display = 'none';
+        rFeeRow.style.display      = 'none';
+      }
+    }
+
+    if (data.jacketSize) {
+      $('r-jacket-size').textContent = data.jacketSize;
+      $('r-jacket-size-row').style.display = 'flex';
+    } else {
+      $('r-jacket-size-row').style.display = 'none';
+    }
+
+    $('r-items').innerHTML = (data.items || [])
+      .map(i => `<div class="rc-row"><span class="lbl">${i.name}</span><span class="val">${fmt(i.price || 0)}</span></div>`)
+      .join('');
+
+    goTo('screen-receipt');
   }
 
   function showReceiptFromFirestore(paymentData, amount, reference, subtotal, fee) {
