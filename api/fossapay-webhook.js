@@ -44,15 +44,23 @@ module.exports = async function handler(req, res) {
 
   // Verify HMAC-SHA256 signature — reject anything that doesn't match
   const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
-  const signature = req.headers['x-fossapay-signature'] || '';
-  const hash = crypto
-    .createHmac('sha256', webhookSecret)
-    .update(rawBody)
-    .digest('hex');
+  const receivedSig = req.headers['x-fossapay-signature'] || '';
+  const rawBodyString = rawBody;
+  const hashOfRaw = crypto.createHmac('sha256', webhookSecret).update(rawBodyString).digest('hex');
+  let hashOfStringified = '';
+  try {
+    const parsedBodyForSig = JSON.parse(rawBodyString);
+    hashOfStringified = crypto.createHmac('sha256', webhookSecret).update(JSON.stringify(parsedBodyForSig)).digest('hex');
+  } catch (_) {
+    // non-JSON body — only rawBody hash will be checked
+  }
+  const sigMatch = (hashOfRaw === receivedSig) || (hashOfStringified === receivedSig);
 
-  console.log('[Webhook Debug] Computed hash:', hash.substring(0, 20) + '...');
-  console.log('[Webhook Debug] Received sig: ', signature ? signature.substring(0, 20) + '...' : 'NONE');
-  console.log('[Webhook Debug] Match:', hash === signature);
+  console.log('[Webhook Debug] hashOfRaw:', hashOfRaw.substring(0, 20) + '...');
+  console.log('[Webhook Debug] hashOfStringified:', hashOfStringified ? hashOfStringified.substring(0, 20) + '...' : 'N/A');
+  console.log('[Webhook Debug] Received sig: ', receivedSig ? receivedSig.substring(0, 20) + '...' : 'NONE');
+  console.log('[Webhook Debug] hashOfRaw match:', hashOfRaw === receivedSig);
+  console.log('[Webhook Debug] hashOfStringified match:', hashOfStringified === receivedSig);
   console.log('[Webhook Debug] webhookSecret length:', webhookSecret.length);
 
   // TEMPORARY bypass — set SKIP_SIG_VERIFY=true in Vercel env vars to skip
@@ -60,7 +68,7 @@ module.exports = async function handler(req, res) {
   // verification is confirmed working.
   const skipVerify = process.env.SKIP_SIG_VERIFY === 'true';
 
-  if (!skipVerify && hash !== signature) {
+  if (!skipVerify && !sigMatch) {
     console.error('[Webhook] Signature mismatch — possible tampered or replayed request');
     return res.status(401).json({ error: 'Invalid signature' });
   }
@@ -96,6 +104,19 @@ module.exports = async function handler(req, res) {
   const fossaTransactionId = data?.transactionId || data?.transaction_id;
   console.log('[Webhook Debug] fossaTransactionId:', fossaTransactionId);
   console.log('[Webhook Debug] receivedAmount:', data?.amount);
+
+  // Idempotency: check if this transaction was already processed
+  const existingPayment = await db.collection('processedEvents').doc(fossaTransactionId).get();
+  if (existingPayment.exists) {
+    console.log('[Webhook] Duplicate event, already processed:', fossaTransactionId);
+    return res.status(200).json({ received: true, duplicate: true });
+  }
+
+  // Mark as processing immediately (before writes)
+  await db.collection('processedEvents').doc(fossaTransactionId).set({
+    processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    eventId: eventId,
+  });
 
   // FossaPay sends net credited amount with up to 2 decimal places.
   // expectedAmount in Firestore is stored as a rounded integer (Math.round of net).
@@ -145,11 +166,12 @@ module.exports = async function handler(req, res) {
   const batch      = db.batch();
   const paymentRef = db.collection('payments').doc(pendingDoc.uid);
 
+  const parsedAmount = parseFloat(receivedAmount);
   const txn = {
     ref:      fossaTransactionId,
     items:    pendingDoc.items,
-    amount:   receivedAmount,
-    subtotal: pendingDoc.subtotal  ?? receivedAmount,
+    amount:   parsedAmount,
+    subtotal: pendingDoc.subtotal  ?? parsedAmount,
     fee:      pendingDoc.fee       ?? 0,
     date:     new Date().toISOString(),
   };
@@ -161,7 +183,7 @@ module.exports = async function handler(req, res) {
     phone:        pendingDoc.phone,
     gender:       pendingDoc.gender,
     paidItems:    admin.firestore.FieldValue.arrayUnion(...pendingDoc.items.map(i => i.id)),
-    totalPaid:    admin.firestore.FieldValue.increment(receivedAmount),
+    totalPaid:    admin.firestore.FieldValue.increment(parsedAmount),
     transactions: admin.firestore.FieldValue.arrayUnion(txn),
   };
   if (pendingDoc.jacketSize != null) {
