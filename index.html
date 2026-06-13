@@ -1731,7 +1731,7 @@
       }
     } catch (err) {
       console.error('Manual check error:', err);
-      msg.textContent = 'Could not check payment status. Check your connection.';
+      msg.textContent = 'Error: ' + (err.message || err.code || 'Unknown error');
       btn.textContent = "I'VE MADE THE PAYMENT";
       btn.disabled = false;
     }
