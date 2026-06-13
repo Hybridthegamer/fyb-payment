@@ -4,9 +4,16 @@
       "collectionGroup": "pendingPayments",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status",         "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "expectedAmount", "order": "ASCENDING" },
-        { "fieldPath": "createdAt",      "order": "ASCENDING" }
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paidAt", "order": "ASCENDING" }
       ]
     }
   ],

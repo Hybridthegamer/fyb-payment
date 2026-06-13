@@ -174,6 +174,7 @@ module.exports = async function handler(req, res) {
     paidItems:    admin.firestore.FieldValue.arrayUnion(...pendingDoc.items.map(i => i.id)),
     totalPaid:    admin.firestore.FieldValue.increment(parsedAmount),
     transactions: admin.firestore.FieldValue.arrayUnion(txn),
+    paidAt:       admin.firestore.FieldValue.serverTimestamp(),
   };
   if (pendingDoc.jacketSize != null) {
     paymentUpdate.jacketSize = pendingDoc.jacketSize;
