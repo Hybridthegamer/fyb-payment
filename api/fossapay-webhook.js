@@ -101,12 +101,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true, duplicate: true });
   }
 
-  // Mark as processing immediately (before writes)
-  await db.collection('processedEvents').doc(fossaTransactionId).set({
-    processedAt: admin.firestore.FieldValue.serverTimestamp(),
-    eventId: eventId,
-  });
-
   // FossaPay sends net credited amount with up to 2 decimal places.
   // expectedAmount in Firestore is stored as a rounded integer (Math.round of net).
   // Round receivedAmount to the nearest integer before querying to ensure match.
@@ -140,10 +134,8 @@ module.exports = async function handler(req, res) {
     pendingRef = q.docs[0].ref;
     pendingDoc = q.docs[0].data();
   } catch (err) {
-    // Log and return 200 so FossaPay does not retry indefinitely.
-    // Investigate manually using eventId in Vercel logs.
-    console.error(`[Webhook] Firestore query failed for event ${eventId}:`, err);
-    return res.status(200).json({ received: true });
+    console.error('[Webhook] Firestore query failed for event', eventId + ':', err);
+    return res.status(500).json({ error: 'Internal error' });
   }
 
   // Idempotency guard — if already processed, do nothing
@@ -151,9 +143,10 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  // Atomic batch write: update payments/{uid} and mark pendingPayments/{accountNumber} complete
-  const batch      = db.batch();
-  const paymentRef = db.collection('payments').doc(pendingDoc.uid);
+  // Atomic batch write: processedEvents + payments/{uid} + pendingPayments/{accountNumber}
+  const batch              = db.batch();
+  const processedEventsRef = db.collection('processedEvents').doc(fossaTransactionId);
+  const paymentRef         = db.collection('payments').doc(pendingDoc.uid);
 
   const parsedAmount = parseFloat(receivedAmount);
   const txn = {
@@ -180,6 +173,10 @@ module.exports = async function handler(req, res) {
     paymentUpdate.jacketSize = pendingDoc.jacketSize;
   }
 
+  batch.set(processedEventsRef, {
+    eventId:     eventId,
+    processedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
   batch.set(paymentRef, paymentUpdate, { merge: true });
   batch.update(pendingRef, {
     status:      'completed',
