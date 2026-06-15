@@ -101,8 +101,9 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true, duplicate: true });
   }
 
-  // FossaPay sends net credited amount with up to 2 decimal places.
-  // expectedAmount in Firestore is stored as a rounded integer (Math.round of net).
+  // FossaPay reports the GROSS amount the student transferred (e.g. "4500.00"),
+  // which equals the totalWithFee shown on the account-details screen and stored
+  // as expectedAmount (an integer) in initiate-payment.js.
   // Round receivedAmount to the nearest integer before querying to ensure match.
   console.log('[Webhook Debug] Full data object keys:', data ? Object.keys(data).join(', ') : 'null');
   console.log('[Webhook Debug] data.amount:', data?.amount);

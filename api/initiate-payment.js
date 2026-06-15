@@ -116,11 +116,12 @@ module.exports = async function handler(req, res) {
       subtotal,
       fee,
       displayAmount:  totalWithFee,
-      // The student transfers `totalWithFee` (gross). FossaPay deducts its 1.2%
-      // charge and the webhook fires with the NET credited amount. We must match
-      // on that net value, not the subtotal — otherwise the Firestore query in
-      // fossapay-webhook.js never finds this record and the payment never confirms.
-      expectedAmount: Math.round(totalWithFee * 0.988),
+      // FossaPay's webhook reports the GROSS amount the student actually
+      // transferred (confirmed from live logs: a student told to send 4500
+      // produces data.amount = "4500.00", with no 1.2% deduction in this field).
+      // The student is instructed to transfer `totalWithFee`, so that is the
+      // value the webhook must match on — not the subtotal, not a net figure.
+      expectedAmount: totalWithFee,
       accountNumber,
       bankName,
       bankCode,
