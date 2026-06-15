@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trackit – Patient Connection</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    body { background: var(--bg); }
+
+    /* ── Page header ───────────────────────── */
+    .page-header {
+      position: relative; z-index: 10;
+      background: white;
+      border-bottom: 1.5px solid var(--border);
+      padding: 14px 0;
+    }
+    .page-header h1 { font-size:1.05rem; font-weight:700; color:var(--text-dark); margin:0; }
+    .page-header p  { font-size:.8rem; color:var(--text-muted); margin:2px 0 0; }
+
+    .content-wrap {
+      max-width: 1280px;
+      margin: 24px auto 60px;
+      padding: 0 20px;
+    }
+
+    /* ── ECG card ──────────────────────────── */
+    .ecg-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .ecg-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ecg-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: .72rem;
+      font-weight: 700;
+      color: #6b7280;
+      letter-spacing: .5px;
+    }
+    .live-badge .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #9ca3af;
+      transition: background .3s;
+    }
+    .live-badge.active .dot {
+      background: #22c55e;
+      box-shadow: 0 0 6px rgba(34,197,94,.6);
+      animation: pulse 1.2s infinite;
+    }
+    .live-badge.active { color: #22c55e; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .4; }
+    }
+
+    #ecgCanvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+      background: #060d1a;
+      cursor: default;
+    }
+
+    .ecg-controls {
+      display: flex;
+      gap: 8px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .ecg-controls .btn { font-size: .82rem; padding: 6px 16px; }
+
+    .ecg-result {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      font-size: .82rem;
+    }
+    .ecg-result-label { font-weight: 600; color: var(--text-mid); }
+    .ecg-result-confidence { color: var(--text-muted); font-size: .78rem; }
+
+    /* ── Vitals ────────────────────────────── */
+    .vitals-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .vital-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 12px;
+      text-align: center;
+      transition: border-color .2s;
+    }
+    .vital-card.active { border-color: var(--green-main); }
+    .vital-label {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .vital-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text-dark);
+      line-height: 1;
+    }
+    .vital-value.active { color: var(--green-dark); }
+    .vital-unit {
+      font-size: .7rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* ── Sidebar cards ─────────────────────── */
+    .side-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .side-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .side-card-title .icon-sm {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--green-light);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--green-dark);
+      font-size: .78rem;
+      flex-shrink: 0;
+    }
+
+    /* Patient info panel */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: .83rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row span:first-child { color: var(--text-muted); }
+    .info-row span:last-child  { font-weight: 600; color: var(--text-dark); }
+
+    /* Disconnected overlay on patient info */
+    .disconnected-msg {
+      text-align: center;
+      padding: 20px 0;
+      color: var(--text-muted);
+    }
+    .disconnected-msg i { font-size: 2rem; opacity: .3; display: block; margin-bottom: 8px; }
+
+    @media (max-width: 991px) {
+      .vitals-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 576px) {
+      .vitals-grid { grid-template-columns: repeat(2, 1fr); }
+      .content-wrap { padding: 0 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navbar ──────────────────────────────────────── -->
+  <nav class="navbar navbar-expand-lg" style="position:relative;z-index:200;">
+    <div class="container-xl">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="index.html">
+        <svg width="36" height="36" viewBox="0 0 42 42" fill="none" aria-hidden="true">
+          <circle cx="21" cy="21" r="21" fill="#f1f5f9"/>
+          <rect x="18" y="8"  width="6" height="26" rx="2" fill="#34a853"/>
+          <rect x="8"  y="18" width="26" height="6"  rx="2" fill="#ea4335"/>
+          <rect x="8"  y="18" width="13" height="6"  rx="2" fill="#4285f4"/>
+          <rect x="18" y="8"  width="6"  height="13" rx="2" fill="#fbbc05"/>
+        </svg>
+        <span class="brand-name">trackit</span>
+      </a>
+      <button class="navbar-toggler border-0" type="button"
+              data-bs-toggle="collapse" data-bs-target="#navMenu"
+              aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav mx-auto gap-1">
+          <li class="nav-item"><a class="nav-link" href="new-patient.html">New Patient</a></li>
+          <li class="nav-item"><a class="nav-link" href="find-patient.html">Find Patient</a></li>
+          <li class="nav-item">
+            <a class="nav-link active" href="patient-connection.html">Patient Connection</a>
+          </li>
+          <li class="nav-item"><a class="nav-link" href="#">Medication</a></li>
+        </ul>
+        <div class="d-flex gap-2 mt-2 mt-lg-0">
+          <a href="#" class="btn btn-outline-primary btn-sm px-3">Create Account</a>
+          <a href="login.html" class="btn btn-primary btn-sm px-3">Log In</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Page header ─────────────────────────────────── -->
+  <div class="page-header">
+    <div class="container-xl px-4">
+      <div class="d-flex align-items-center gap-3">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--green-light);
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="bi bi-activity" style="color:var(--green-dark);"></i>
+        </div>
+        <div>
+          <h1>Patient Connection</h1>
+          <p>Connect to a patient and monitor live ECG and vital signs</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main content ────────────────────────────────── -->
+  <div class="content-wrap">
+    <div class="row g-4">
+
+      <!-- LEFT: ECG + vitals -->
+      <div class="col-lg-8">
+
+        <!-- ECG card -->
+        <div class="ecg-card">
+          <div class="ecg-header">
+            <div class="ecg-title">
+              <i class="bi bi-heart-pulse-fill" style="color:var(--green-dark);"></i>
+              ECG Waveform
+            </div>
+            <div class="live-badge" id="liveBadge">
+              <span class="dot"></span>
+              <span id="liveText">DISCONNECTED</span>
+            </div>
+          </div>
+
+          <canvas id="ecgCanvas"></canvas>
+
+          <div class="ecg-controls">
+            <button id="btnConnect" class="btn btn-primary">
+              <i class="bi bi-plug-fill me-1"></i>Connect
+            </button>
+            <button id="btnPause" class="btn btn-outline-secondary" disabled>
+              <i class="bi bi-pause-fill me-1"></i>Pause
+            </button>
+            <button id="btnSave" class="btn btn-outline-secondary" disabled>
+              <i class="bi bi-save me-1"></i>Save
+            </button>
+            <button id="btnAnalyse" class="btn btn-outline-info" disabled>
+              <i class="bi bi-activity me-1"></i>Analyse ECG
+            </button>
+            <button id="btnStop" class="btn btn-outline-danger" disabled>
+              <i class="bi bi-stop-fill me-1"></i>Stop
+            </button>
+            <button id="btnUDP" class="btn btn-outline-secondary">
+              <i class="bi bi-broadcast me-1"></i>UDP
+            </button>
+          </div>
+
+          <div class="ecg-result" id="ecgResult">
+            <span class="ecg-result-label">ECG Analysis:</span>
+            <span class="badge bg-secondary" id="ecgResultBadge">Not yet analysed</span>
+            <span class="ecg-result-confidence" id="ecgResultConfidence"></span>
+          </div>
+        </div>
+
+        <!-- Vital signs -->
+        <div class="vitals-grid">
+          <div class="vital-card" id="vitalTemp">
+            <div class="vital-label">Temperature</div>
+            <div class="vital-value" id="valTemp">—</div>
+            <div class="vital-unit">°C</div>
+          </div>
+          <div class="vital-card" id="vitalHR">
+            <div class="vital-label">Heart Rate</div>
+            <div class="vital-value" id="valHR">—</div>
+            <div class="vital-unit">bpm</div>
+          </div>
+          <div class="vital-card" id="vitalSPO2">
+            <div class="vital-label">SPO2</div>
+            <div class="vital-value" id="valSPO2">—</div>
+            <div class="vital-unit">%</div>
+          </div>
+          <div class="vital-card" id="vitalBP">
+            <div class="vital-label">Blood Pressure</div>
+            <div class="vital-value" id="valBP">—</div>
+            <div class="vital-unit">mmHg</div>
+          </div>
+          <div class="vital-card" id="vitalResp">
+            <div class="vital-label">Respiration</div>
+            <div class="vital-value" id="valResp">—</div>
+            <div class="vital-unit">breaths/min</div>
+          </div>
+        </div>
+
+      </div><!-- /.col-lg-8 -->
+
+      <!-- RIGHT: connect panel + patient info -->
+      <div class="col-lg-4">
+        <div style="position:sticky;top:20px;">
+
+          <!-- Connect to patient -->
+          <div class="side-card">
+            <div class="side-card-title">
+              <div class="icon-sm"><i class="bi bi-person-check-fill"></i></div>
+              Connect to Patient
+            </div>
+
+            <div class="mb-3">
+              <label for="connType" class="form-label"
+                     style="font-size:.82rem;font-weight:600;color:var(--text-mid);">
+                Search By
+              </label>
+              <select id="connType" class="form-select form-select-sm">
+                <option value="name">Patient Name</option>
+                <option value="id">Patient ID</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="connValue" class="form-label"
+                     style="font-size:.82rem;font-weight:600;color:var(--text-mid);">
+                <span id="connValueLabel">Name</span>
+              </label>
+              <input type="text" id="connValue" class="form-control form-control-sm"
+                     placeholder="e.g. Amaka Okafor"
+                     list="patientSuggestions" autocomplete="off" />
+              <datalist id="patientSuggestions"></datalist>
+              <div class="invalid-feedback" id="connError"></div>
+            </div>
+
+            <button id="connectBtn" class="btn btn-primary w-100 fw-semibold">
+              <i class="bi bi-plug-fill me-2"></i>Connect
+            </button>
+            <button id="disconnectBtn"
+                    class="btn btn-outline-danger w-100 mt-2 d-none fw-semibold">
+              <i class="bi bi-x-circle me-2"></i>Disconnect
+            </button>
+          </div>
+
+          <!-- Patient info panel -->
+          <div class="side-card">
+            <div class="side-card-title">
+              <div class="icon-sm"><i class="bi bi-person-badge-fill"></i></div>
+              Patient Info
+            </div>
+
+            <div id="patientInfoPanel">
+              <div class="disconnected-msg">
+                <i class="bi bi-person-slash"></i>
+                <div class="small">No patient connected</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/patient-connection.js"></script>
+</body>
+</html>

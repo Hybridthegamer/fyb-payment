@@ -1,0 +1,11 @@
+{
+  "routes": [
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/login", "dest": "/login.html" },
+    { "src": "/new-patient", "dest": "/new-patient.html" },
+    { "src": "/find-patient", "dest": "/find-patient.html" },
+    { "src": "/patient-connection", "dest": "/patient-connection.html" },
+    { "src": "/css/(.*)", "dest": "/css/$1" },
+    { "src": "/js/(.*)", "dest": "/js/$1" }
+  ]
+}

@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trackit – New Patient</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    body { background: var(--bg); }
+
+    /* Subtle top-right accent */
+    .page-deco {
+      position: fixed;
+      top: 0; right: 0;
+      width: 30%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: .55;
+    }
+
+    /* Page header bar */
+    .page-header {
+      position: relative;
+      z-index: 10;
+      background: white;
+      border-bottom: 1.5px solid var(--border);
+      padding: 14px 0;
+    }
+    .page-header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 0;
+    }
+    .page-header p {
+      font-size: .8rem;
+      color: var(--text-muted);
+      margin: 2px 0 0;
+    }
+
+    /* Content wrapper */
+    .content-wrap {
+      position: relative;
+      z-index: 10;
+      max-width: 1160px;
+      margin: 28px auto 60px;
+      padding: 0 20px;
+    }
+
+    /* Sticky sidebar on large screens */
+    .sidebar-sticky { position: sticky; top: 20px; }
+
+    /* Photo preview box */
+    .photo-box {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #f9fafb;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .2s;
+      margin-bottom: 12px;
+    }
+    .photo-box:hover { border-color: var(--green-main); }
+    .photo-box img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    .photo-placeholder { text-align: center; color: var(--text-muted); }
+    .photo-placeholder i { font-size: 2.6rem; opacity: .35; }
+
+    /* Section card */
+    .form-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px 24px;
+      margin-bottom: 20px;
+    }
+    .form-card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .form-card-title .icon-circle {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--green-light);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      color: var(--green-dark);
+      font-size: .85rem;
+    }
+    .form-card-title h2 {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 0;
+    }
+
+    /* Form labels */
+    .form-label {
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      margin-bottom: 4px;
+    }
+    .form-control, .form-select {
+      font-size: .88rem;
+    }
+    .form-control::placeholder { color: var(--text-muted); }
+
+    /* Required asterisk */
+    .req { color: #dc3545; margin-left: 2px; }
+
+    @media (max-width: 991px) {
+      .sidebar-sticky { position: static; }
+      .page-deco { display: none; }
+    }
+    @media (max-width: 576px) {
+      .content-wrap { padding: 0 12px; }
+      .form-card    { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Subtle background deco -->
+  <svg class="page-deco" viewBox="0 0 500 400" fill="none"
+       xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M500 0 L0 0 L0 180
+             C80 158,190 215,320 185
+             C420 162,475 200,500 185 Z"
+          fill="#d6f0e0"/>
+  </svg>
+
+  <!-- ── Navbar ─────────────────────────────────────── -->
+  <nav class="navbar navbar-expand-lg" style="position:relative;z-index:200;">
+    <div class="container-xl">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="index.html">
+        <svg width="36" height="36" viewBox="0 0 42 42" fill="none" aria-hidden="true">
+          <circle cx="21" cy="21" r="21" fill="#f1f5f9"/>
+          <rect x="18" y="8"  width="6" height="26" rx="2" fill="#34a853"/>
+          <rect x="8"  y="18" width="26" height="6"  rx="2" fill="#ea4335"/>
+          <rect x="8"  y="18" width="13" height="6"  rx="2" fill="#4285f4"/>
+          <rect x="18" y="8"  width="6"  height="13" rx="2" fill="#fbbc05"/>
+        </svg>
+        <span class="brand-name">trackit</span>
+      </a>
+      <button class="navbar-toggler border-0" type="button"
+              data-bs-toggle="collapse" data-bs-target="#navMenu"
+              aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav mx-auto gap-1">
+          <li class="nav-item">
+            <a class="nav-link active" href="new-patient.html">New Patient</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="find-patient.html">Find Patient</a>
+          </li>
+          <li class="nav-item"><a class="nav-link" href="patient-connection.html">Patient Connection</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Medication</a></li>
+        </ul>
+        <div class="d-flex gap-2 mt-2 mt-lg-0">
+          <a href="#" class="btn btn-outline-primary btn-sm px-3">Create Account</a>
+          <a href="login.html" class="btn btn-primary btn-sm px-3">Log In</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Page header ─────────────────────────────────── -->
+  <div class="page-header">
+    <div class="container-xl px-4">
+      <div class="d-flex align-items-center gap-3">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--green-light);
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="bi bi-person-plus-fill" style="color:var(--green-dark);"></i>
+        </div>
+        <div>
+          <h1>New Patient Registration</h1>
+          <p>Complete all required fields and save the patient record</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main content ────────────────────────────────── -->
+  <div class="content-wrap">
+    <div class="row g-4">
+
+      <!-- ── LEFT: form sections ──────────────────────── -->
+      <div class="col-lg-8">
+
+        <!-- Personal Information -->
+        <div class="form-card">
+          <div class="form-card-title">
+            <div class="icon-circle"><i class="bi bi-person-fill"></i></div>
+            <h2>Personal Information</h2>
+          </div>
+
+          <form id="patientForm" novalidate>
+            <div class="row g-3">
+
+              <!-- National ID -->
+              <div class="col-12">
+                <label for="nationalId" class="form-label">
+                  National Identity Number (NIN)<span class="req">*</span>
+                </label>
+                <input type="text" id="nationalId" class="form-control"
+                       placeholder="Enter 11-digit NIN" maxlength="11"
+                       inputmode="numeric" />
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- First + Last name -->
+              <div class="col-md-6">
+                <label for="firstName" class="form-label">
+                  First Name<span class="req">*</span>
+                </label>
+                <input type="text" id="firstName" class="form-control"
+                       placeholder="e.g. Amaka" />
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col-md-6">
+                <label for="lastName" class="form-label">
+                  Last Name<span class="req">*</span>
+                </label>
+                <input type="text" id="lastName" class="form-control"
+                       placeholder="e.g. Okafor" />
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- Gender + Age + DOB -->
+              <div class="col-md-4">
+                <label for="gender" class="form-label">
+                  Gender<span class="req">*</span>
+                </label>
+                <select id="gender" class="form-select">
+                  <option value="">Select…</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
+                </select>
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col-md-4">
+                <label for="age" class="form-label">
+                  Age<span class="req">*</span>
+                </label>
+                <input type="number" id="age" class="form-control"
+                       placeholder="e.g. 25" min="0" max="150" />
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col-md-4">
+                <label for="dob" class="form-label">
+                  Date of Birth<span class="req">*</span>
+                </label>
+                <input type="date" id="dob" class="form-control" />
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- Mobile + Telephone -->
+              <div class="col-md-6">
+                <label for="mobile" class="form-label">
+                  Mobile Number<span class="req">*</span>
+                </label>
+                <input type="tel" id="mobile" class="form-control"
+                       placeholder="e.g. 08012345678" maxlength="11" />
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col-md-6">
+                <label for="telephone" class="form-label">Telephone</label>
+                <input type="tel" id="telephone" class="form-control"
+                       placeholder="e.g. 01-234-5678" />
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- Email -->
+              <div class="col-12">
+                <label for="email" class="form-label">
+                  Email Address<span class="req">*</span>
+                </label>
+                <input type="email" id="email" class="form-control"
+                       placeholder="e.g. patient@gmail.com" />
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- Blood Type + Genotype -->
+              <div class="col-md-6">
+                <label for="bloodType" class="form-label">
+                  Blood Type<span class="req">*</span>
+                </label>
+                <select id="bloodType" class="form-select">
+                  <option value="">Select…</option>
+                  <option>A+</option><option>A-</option>
+                  <option>B+</option><option>B-</option>
+                  <option>AB+</option><option>AB-</option>
+                  <option>O+</option><option>O-</option>
+                </select>
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col-md-6">
+                <label for="genotype" class="form-label">
+                  Genotype<span class="req">*</span>
+                </label>
+                <select id="genotype" class="form-select">
+                  <option value="">Select…</option>
+                  <option>AA</option>
+                  <option>AS</option>
+                  <option>SS</option>
+                  <option>AC</option>
+                </select>
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- Department + Marital Status -->
+              <div class="col-md-6">
+                <label for="department" class="form-label">
+                  Department<span class="req">*</span>
+                </label>
+                <input type="text" id="department" class="form-control"
+                       list="deptSuggestions"
+                       placeholder="e.g. Cardiology" />
+                <datalist id="deptSuggestions">
+                  <option value="Cardiology">
+                  <option value="Dermatology">
+                  <option value="Emergency">
+                  <option value="Gynecology">
+                  <option value="Internal Medicine">
+                  <option value="Neurology">
+                  <option value="Ophthalmology">
+                  <option value="Orthopedic">
+                  <option value="Pediatrics">
+                  <option value="Surgery">
+                </datalist>
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col-md-6">
+                <label for="maritalStatus" class="form-label">
+                  Marital Status<span class="req">*</span>
+                </label>
+                <select id="maritalStatus" class="form-select">
+                  <option value="">Select…</option>
+                  <option>Single</option>
+                  <option>Married</option>
+                  <option>Divorced</option>
+                  <option>Widowed</option>
+                </select>
+                <div class="invalid-feedback"></div>
+              </div>
+
+              <!-- Doctor -->
+              <div class="col-12">
+                <label for="doctor" class="form-label">Assigned Doctor</label>
+                <input type="text" id="doctor" class="form-control"
+                       list="doctorSuggestions"
+                       placeholder="e.g. Dr. Adeyemi" />
+                <datalist id="doctorSuggestions">
+                  <option value="Dr. Adeyemi">
+                  <option value="Dr. Bello">
+                  <option value="Dr. Nwosu">
+                  <option value="Dr. Okafor">
+                  <option value="Dr. Ibrahim">
+                  <option value="Dr. Eze">
+                  <option value="Dr. Fashola">
+                </datalist>
+                <div class="invalid-feedback"></div>
+              </div>
+
+            </div><!-- /.row personal -->
+          </form>
+        </div><!-- /.form-card personal -->
+
+        <!-- Address Information -->
+        <div class="form-card">
+          <div class="form-card-title">
+            <div class="icon-circle"><i class="bi bi-geo-alt-fill"></i></div>
+            <h2>Address Information</h2>
+          </div>
+
+          <div class="row g-3">
+            <!-- Country + State -->
+            <div class="col-md-6">
+              <label for="country" class="form-label">Country</label>
+              <select id="country" class="form-select">
+                <option value="Nigeria" selected>Nigeria</option>
+                <option value="Ghana">Ghana</option>
+                <option value="Cameroon">Cameroon</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="state" class="form-label">
+                State<span class="req">*</span>
+              </label>
+              <select id="state" class="form-select">
+                <option value="">Select state…</option>
+              </select>
+              <div class="invalid-feedback"></div>
+            </div>
+
+            <!-- City + ZIP -->
+            <div class="col-md-6">
+              <label for="city" class="form-label">
+                City / LGA<span class="req">*</span>
+              </label>
+              <input type="text" id="city" class="form-control"
+                     placeholder="e.g. Port Harcourt" />
+              <div class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-6">
+              <label for="zip" class="form-label">
+                ZIP / Postal Code<span class="req">*</span>
+              </label>
+              <input type="text" id="zip" class="form-control"
+                     placeholder="e.g. 500001" maxlength="6"
+                     inputmode="numeric" />
+              <div class="invalid-feedback"></div>
+            </div>
+
+            <!-- Street - full width -->
+            <div class="col-12">
+              <label for="street" class="form-label">
+                Street Address<span class="req">*</span>
+              </label>
+              <input type="text" id="street" class="form-control"
+                     placeholder="e.g. 10 Haven Avenue, GRA Phase 2" />
+              <div class="invalid-feedback"></div>
+            </div>
+          </div>
+
+        </div><!-- /.form-card address -->
+
+        <!-- Contact Person -->
+        <div class="form-card">
+          <div class="form-card-title">
+            <div class="icon-circle"><i class="bi bi-person-lines-fill"></i></div>
+            <h2>Contact Person <span style="font-weight:400;color:var(--text-muted);font-size:.8rem;">(optional)</span></h2>
+          </div>
+          <div class="row g-2 mb-3 align-items-end">
+            <div class="col-md-4">
+              <label for="contactType" class="form-label">Contact Type</label>
+              <select id="contactType" class="form-select form-select-sm">
+                <option value="">Selectâ¦</option>
+                <option>Phone</option><option>Email</option>
+                <option>Fax</option><option>WhatsApp</option><option>Other</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="contactDetail" class="form-label">Contact Detail</label>
+              <input type="text" id="contactDetail" class="form-control form-control-sm"
+                     placeholder="e.g. 08098765432" />
+            </div>
+            <div class="col-md-2">
+              <button type="button" id="addContactBtn" class="btn btn-primary btn-sm w-100">+ Add</button>
+            </div>
+          </div>
+          <div id="contactsList"></div>
+          <p id="noContactsMsg" class="text-muted small text-center py-2 mb-0">
+            <i class="bi bi-people me-1"></i>No contacts added yet.
+          </p>
+        </div><!-- /.form-card contact -->
+
+        <!-- Mobile-only save button -->
+        <div class="d-grid gap-2 d-lg-none mb-4">
+          <button id="saveBtnMobile"
+                  class="btn btn-primary py-2 fw-semibold">
+            <i class="bi bi-save-fill me-2"></i>Save Patient
+          </button>
+          <button id="clearBtnMobile"
+                  class="btn btn-outline-secondary py-2">
+            <i class="bi bi-x-circle me-2"></i>Clear Form
+          </button>
+        </div>
+
+      </div><!-- /.col-lg-8 -->
+
+      <!-- ── RIGHT: photo + actions ──────────────────── -->
+      <div class="col-lg-4">
+        <div class="sidebar-sticky">
+
+          <!-- Photo upload card -->
+          <div class="form-card">
+            <div class="form-card-title">
+              <div class="icon-circle"><i class="bi bi-camera-fill"></i></div>
+              <h2>Patient Photo</h2>
+            </div>
+
+            <div class="photo-box" id="photoBox" role="button"
+                 aria-label="Click to upload patient photo"
+                 title="Click to upload photo">
+              <div class="photo-placeholder" id="photoPlaceholder">
+                <i class="bi bi-person-bounding-box"></i>
+                <div class="small mt-2">Click to upload photo</div>
+                <div class="small text-muted" style="font-size:.72rem;">
+                  JPG, PNG or GIF
+                </div>
+              </div>
+              <img id="photoImg" src="" alt="Patient photo preview"
+                   style="display:none;" />
+            </div>
+
+            <input type="file" id="photoInput"
+                   accept="image/jpeg,image/png,image/gif"
+                   class="d-none" aria-label="Upload patient photo" />
+
+            <button type="button" id="uploadBtn"
+                    class="btn btn-outline-primary w-100 btn-sm">
+              <i class="bi bi-upload me-2"></i>Upload Photo
+            </button>
+            <p class="text-center text-muted mt-2 mb-0"
+               style="font-size:.73rem;" id="photoFileName">
+              No photo selected
+            </p>
+          </div>
+
+          <!-- Patient ID preview -->
+          <div class="form-card">
+            <div class="form-card-title">
+              <div class="icon-circle"><i class="bi bi-tag-fill"></i></div>
+              <h2>Patient ID</h2>
+            </div>
+            <p class="text-muted small mb-1">
+              This ID will be auto-assigned on save:
+            </p>
+            <div class="d-flex align-items-center gap-2">
+              <span id="previewId"
+                    class="fw-bold fs-5"
+                    style="color:var(--green-dark);
+                           font-family:monospace;
+                           letter-spacing:1px;">
+                TRK-???
+              </span>
+              <span class="badge bg-warning text-dark small">Pending</span>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="d-grid gap-2">
+            <button id="saveBtn"
+                    class="btn btn-primary py-2 fw-semibold">
+              <i class="bi bi-save-fill me-2"></i>Save Patient
+            </button>
+            <button id="clearBtn"
+                    class="btn btn-outline-secondary py-2">
+              <i class="bi bi-x-circle me-2"></i>Clear Form
+            </button>
+          </div>
+
+        </div><!-- /.sidebar-sticky -->
+      </div><!-- /.col-lg-4 -->
+
+    </div><!-- /.row -->
+  </div><!-- /.content-wrap -->
+
+  <!-- Toast container -->
+  <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/new-patient.js"></script>
+</body>
+</html>

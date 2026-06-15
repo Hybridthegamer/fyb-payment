@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+neurokit2
+numpy
+scipy

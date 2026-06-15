@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trackit – Find Patient</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    body { background: var(--bg); }
+
+    .page-deco {
+      position: fixed;
+      top: 0; right: 0;
+      width: 28%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: .4;
+    }
+
+    /* ── Page header ───────────────────────── */
+    .page-header {
+      position: relative;
+      z-index: 10;
+      background: white;
+      border-bottom: 1.5px solid var(--border);
+      padding: 14px 0;
+    }
+    .page-header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 0;
+    }
+    .page-header p {
+      font-size: .8rem;
+      color: var(--text-muted);
+      margin: 2px 0 0;
+    }
+
+    /* ── Content area ──────────────────────── */
+    .content-wrap {
+      position: relative;
+      z-index: 10;
+      max-width: 1280px;
+      margin: 24px auto 60px;
+      padding: 0 20px;
+    }
+
+    /* ── Filter bar ────────────────────────── */
+    .filter-bar {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+    .filter-bar .form-control,
+    .filter-bar .form-select {
+      font-size: .86rem;
+    }
+    #searchInput {
+      border-right: none;
+    }
+    .search-icon-addon {
+      background: white;
+      border-left: none;
+      color: var(--text-muted);
+    }
+
+    /* ── Table card ────────────────────────── */
+    .table-card {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .table-card .table {
+      margin: 0;
+      font-size: .875rem;
+    }
+    .table-card .table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #f8faf9;
+      border-bottom: 2px solid var(--border);
+      color: var(--text-mid);
+      font-weight: 600;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      padding: 11px 14px;
+      white-space: nowrap;
+    }
+    .table-card .table tbody td {
+      padding: 10px 14px;
+      vertical-align: middle;
+      border-color: #f0f2f4;
+    }
+    .table-card .table tbody tr:hover {
+      background: #f8fdf9;
+    }
+
+    /* Sortable column header */
+    .sort-th {
+      cursor: pointer;
+      user-select: none;
+    }
+    .sort-th:hover {
+      background: var(--green-light) !important;
+      color: var(--green-dark);
+    }
+    .sort-icon {
+      font-size: .68rem;
+      opacity: .35;
+      margin-left: 4px;
+      transition: opacity .15s;
+    }
+    .sort-icon.active {
+      opacity: 1;
+      color: var(--green-dark);
+    }
+
+    /* Patient ID cell */
+    .patient-id-cell {
+      font-family: monospace;
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      letter-spacing: .5px;
+    }
+
+    /* ── Result count bar ──────────────────── */
+    .result-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1.5px solid var(--border);
+      background: white;
+      font-size: .82rem;
+    }
+    #resultCount { color: var(--text-muted); }
+
+    /* ── Patient detail modal ──────────────── */
+    .modal-detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 24px;
+    }
+    .detail-item label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+    .detail-item p {
+      font-size: .9rem;
+      font-weight: 500;
+      color: var(--text-dark);
+      margin: 0;
+    }
+    .modal-section-title {
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--green-dark);
+      margin: 16px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    @media (max-width: 768px) {
+      .content-wrap { padding: 0 12px; }
+      .page-deco { display: none; }
+      .modal-detail-grid { grid-template-columns: 1fr; }
+      .filter-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Subtle decoration -->
+  <svg class="page-deco" viewBox="0 0 500 400" fill="none"
+       xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M500 0 L0 0 L0 180
+             C80 158,190 215,320 185
+             C420 162,475 200,500 185 Z"
+          fill="#d6f0e0"/>
+  </svg>
+
+  <!-- ── Navbar ─────────────────────────────────────── -->
+  <nav class="navbar navbar-expand-lg" style="position:relative;z-index:200;">
+    <div class="container-xl">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="index.html">
+        <svg width="36" height="36" viewBox="0 0 42 42" fill="none" aria-hidden="true">
+          <circle cx="21" cy="21" r="21" fill="#f1f5f9"/>
+          <rect x="18" y="8"  width="6" height="26" rx="2" fill="#34a853"/>
+          <rect x="8"  y="18" width="26" height="6"  rx="2" fill="#ea4335"/>
+          <rect x="8"  y="18" width="13" height="6"  rx="2" fill="#4285f4"/>
+          <rect x="18" y="8"  width="6"  height="13" rx="2" fill="#fbbc05"/>
+        </svg>
+        <span class="brand-name">trackit</span>
+      </a>
+      <button class="navbar-toggler border-0" type="button"
+              data-bs-toggle="collapse" data-bs-target="#navMenu"
+              aria-controls="navMenu" aria-expanded="false"
+              aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav mx-auto gap-1">
+          <li class="nav-item">
+            <a class="nav-link" href="new-patient.html">New Patient</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="find-patient.html">Find Patient</a>
+          </li>
+          <li class="nav-item"><a class="nav-link" href="patient-connection.html">Patient Connection</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Medication</a></li>
+        </ul>
+        <div class="d-flex gap-2 mt-2 mt-lg-0">
+          <a href="#" class="btn btn-outline-primary btn-sm px-3">Create Account</a>
+          <a href="login.html" class="btn btn-primary btn-sm px-3">Log In</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Page header ─────────────────────────────────── -->
+  <div class="page-header">
+    <div class="container-xl px-4">
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-3">
+          <div style="width:38px;height:38px;border-radius:50%;
+                      background:var(--green-light);display:flex;
+                      align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bi bi-search" style="color:var(--green-dark);"></i>
+          </div>
+          <div>
+            <h1>Find Patient</h1>
+            <p>Search, filter, and manage patient records</p>
+          </div>
+        </div>
+        <button id="exportBtn" class="btn btn-outline-primary btn-sm px-3 d-flex align-items-center gap-2">
+          <i class="bi bi-download"></i>
+          <span class="d-none d-sm-inline">Export CSV</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main content ────────────────────────────────── -->
+  <div class="content-wrap">
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <div class="row g-2 align-items-center">
+        <!-- Search -->
+        <div class="col-12 col-md-5">
+          <div class="input-group">
+            <input type="text" id="searchInput"
+                   class="form-control"
+                   placeholder="Search by name, ID, NIN, or department…"
+                   autocomplete="off" />
+            <span class="input-group-text search-icon-addon">
+              <i class="bi bi-search"></i>
+            </span>
+          </div>
+        </div>
+        <!-- Department filter -->
+        <div class="col-6 col-md-2">
+          <select id="deptFilter" class="form-select">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <!-- Gender filter -->
+        <div class="col-6 col-md-2">
+          <select id="genderFilter" class="form-select">
+            <option value="">All Genders</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+        <!-- Status filter -->
+        <div class="col-6 col-md-2">
+          <select id="statusFilter" class="form-select">
+            <option value="">All Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+        <!-- Clear filters -->
+        <div class="col-6 col-md-1">
+          <button id="clearFiltersBtn"
+                  class="btn btn-outline-secondary w-100"
+                  title="Clear all filters">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table card -->
+    <div class="table-card">
+
+      <!-- Result count + quick info -->
+      <div class="result-bar">
+        <span id="resultCount">Loading…</span>
+        <span class="text-muted d-none d-sm-inline" style="font-size:.78rem;">
+          Click any column header to sort &nbsp;·&nbsp;
+          Click <strong>View</strong> for full details
+        </span>
+      </div>
+
+      <!-- Responsive table wrapper -->
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th class="sort-th" data-col="id">
+                Patient ID <i class="bi bi-arrow-down-up sort-icon" id="icon-id"></i>
+              </th>
+              <th class="sort-th" data-col="lastName">
+                Full Name <i class="bi bi-arrow-down-up sort-icon" id="icon-lastName"></i>
+              </th>
+              <th class="sort-th" data-col="age">
+                Age <i class="bi bi-arrow-down-up sort-icon" id="icon-age"></i>
+              </th>
+              <th class="sort-th" data-col="gender">
+                Gender <i class="bi bi-arrow-down-up sort-icon" id="icon-gender"></i>
+              </th>
+              <th class="sort-th" data-col="department">
+                Department <i class="bi bi-arrow-down-up sort-icon" id="icon-department"></i>
+              </th>
+              <th class="sort-th" data-col="bloodType">
+                Blood Type <i class="bi bi-arrow-down-up sort-icon" id="icon-bloodType"></i>
+              </th>
+              <th class="sort-th" data-col="status">
+                Status <i class="bi bi-arrow-down-up sort-icon" id="icon-status"></i>
+              </th>
+              <th class="sort-th" data-col="registeredDate">
+                Registered <i class="bi bi-arrow-down sort-icon active" id="icon-registeredDate"></i>
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="patientTableBody">
+            <tr>
+              <td colspan="9" class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm me-2"
+                     role="status" aria-hidden="true"></div>
+                Loading patients…
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /.table-card -->
+
+  </div><!-- /.content-wrap -->
+
+  <!-- ── Patient detail modal ─────────────────────────── -->
+  <div class="modal fade" id="patientModal" tabindex="-1"
+       aria-labelledby="patientModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+
+        <div class="modal-header border-0 pb-0">
+          <div>
+            <div class="d-flex align-items-center gap-3 mb-1">
+              <span class="fw-bold" style="font-family:monospace;font-size:1.1rem;
+                                           color:var(--green-dark);"
+                    id="modalPatientId">TRK-000</span>
+              <span id="modalStatusBadge" class="badge-active">Active</span>
+            </div>
+            <h5 class="modal-title fw-bold" id="patientModalLabel"
+                style="color:var(--text-dark);font-size:1.2rem;"
+                id="modalName">Patient Name</h5>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body pt-0">
+
+          <div class="modal-section-title">Personal Information</div>
+          <div class="modal-detail-grid">
+            <div class="detail-item">
+              <label>National ID (NIN)</label>
+              <p id="modalNin">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Gender</label>
+              <p id="modalGender">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Age</label>
+              <p id="modalAge">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Date of Birth</label>
+              <p id="modalDob">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Mobile Number</label>
+              <p id="modalMobile">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Email Address</label>
+              <p id="modalEmail">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Blood Type</label>
+              <p id="modalBloodType">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Genotype</label>
+              <p id="modalGenotype">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Department</label>
+              <p id="modalDept">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Marital Status</label>
+              <p id="modalMarital">—</p>
+            </div>
+          </div>
+
+          <div class="modal-section-title">Address</div>
+          <div class="modal-detail-grid">
+            <div class="detail-item col-span-2">
+              <label>Street Address</label>
+              <p id="modalStreet">—</p>
+            </div>
+            <div class="detail-item">
+              <label>City / LGA</label>
+              <p id="modalCity">—</p>
+            </div>
+            <div class="detail-item">
+              <label>State</label>
+              <p id="modalState">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Country</label>
+              <p id="modalCountry">—</p>
+            </div>
+            <div class="detail-item">
+              <label>ZIP / Postal Code</label>
+              <p id="modalZip">—</p>
+            </div>
+          </div>
+
+          <div class="modal-section-title">Registration</div>
+          <div class="modal-detail-grid">
+            <div class="detail-item">
+              <label>Registered Date</label>
+              <p id="modalRegistered">—</p>
+            </div>
+            <div class="detail-item">
+              <label>Record Status</label>
+              <p id="modalStatusText">—</p>
+            </div>
+          </div>
+
+        </div><!-- /.modal-body -->
+
+        <div class="modal-footer border-0 pt-0">
+          <a id="modalNewPatientLink" href="new-patient.html"
+             class="btn btn-primary btn-sm px-3">
+            <i class="bi bi-person-plus me-1"></i>Register Another
+          </a>
+          <button type="button" class="btn btn-outline-secondary btn-sm px-3"
+                  data-bs-dismiss="modal">Close</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <!-- data.js MUST load before find-patient.js -->
+  <script src="js/data.js"></script>
+  <script src="js/find-patient.js"></script>
+</body>
+</html>
