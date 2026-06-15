@@ -179,8 +179,11 @@ module.exports = async function handler(req, res) {
   });
   batch.set(paymentRef, paymentUpdate, { merge: true });
   batch.update(pendingRef, {
-    status:      'completed',
-    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    status:         'completed',
+    completedAt:    admin.firestore.FieldValue.serverTimestamp(),
+    // The client receipt screen reads transactionRef off this doc — persist it
+    // here so the student sees their reference instead of a "—" placeholder.
+    transactionRef: fossaTransactionId,
   });
 
   await batch.commit();
