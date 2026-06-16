@@ -101,10 +101,11 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true, duplicate: true });
   }
 
-  // FossaPay reports the GROSS amount the student transferred (e.g. "4500.00"),
-  // which equals the totalWithFee shown on the account-details screen and stored
-  // as expectedAmount (an integer) in initiate-payment.js.
-  // Round receivedAmount to the nearest integer before querying to ensure match.
+  // FossaPay reports the NET-credited amount (e.g. "4500.00") — the student's
+  // transfer minus FossaPay's settlement fee. By design that net equals the
+  // subtotal stored as expectedAmount in initiate-payment.js (the fee markup
+  // covers FossaPay's cut). Round receivedAmount to the nearest integer before
+  // querying so a "4500.00" string matches the integer expectedAmount.
   console.log('[Webhook Debug] Full data object keys:', data ? Object.keys(data).join(', ') : 'null');
   console.log('[Webhook Debug] data.amount:', data?.amount);
   console.log('[Webhook Debug] queryAmount:', Math.round(data?.amount));
@@ -112,28 +113,41 @@ module.exports = async function handler(req, res) {
 
   // With the shared-account model all students pay to the same organizer account.
   // Match the deposit to the correct pending payment by querying for the oldest
-  // pending record whose expectedAmount equals the received amount.
-  // Requires a Firestore composite index on:
+  // pending record whose expectedAmount equals the received (net-credited) amount.
+  //
+  // expectedAmount is stored as the SUBTOTAL (see initiate-payment.js): FossaPay
+  // credits the net after its settlement fee, and the fee markup is sized so net
+  // == subtotal. For flat-fee tiers net == subtotal exactly; for the top 1.2%
+  // tier rounding can leave net = subtotal + 1. So try the exact amount first,
+  // then ±1, to absorb that rounding without widening the match for unrelated
+  // payments. Each candidate is an exact equality query, so it reuses the
   //   pendingPayments — status ASC, expectedAmount ASC, createdAt ASC
+  // composite index and keeps oldest-first FIFO matching within a given amount.
   let pendingRef, pendingDoc;
   try {
-    const q = await db.collection('pendingPayments')
-      .where('status', '==', 'pending')
-      .where('expectedAmount', '==', queryAmount)
-      .orderBy('createdAt', 'asc')
-      .limit(1)
-      .get();
+    const candidates = [queryAmount, queryAmount - 1, queryAmount + 1];
+    let matchDoc = null;
+    for (const candidate of candidates) {
+      const q = await db.collection('pendingPayments')
+        .where('status', '==', 'pending')
+        .where('expectedAmount', '==', candidate)
+        .orderBy('createdAt', 'asc')
+        .limit(1)
+        .get();
+      if (!q.empty) { matchDoc = q.docs[0]; break; }
+    }
 
-    if (q.empty) {
+    if (!matchDoc) {
       console.warn(
-        `[Webhook] No pending payment found for amount ${receivedAmount}. ` +
-        `Event ID: ${eventId}. Acknowledging without action.`
+        `[Webhook] No pending payment found for amount ${receivedAmount} ` +
+        `(tried ${candidates.join(', ')}). Event ID: ${eventId}. ` +
+        `Acknowledging without action.`
       );
       return res.status(200).json({ received: true });
     }
 
-    pendingRef = q.docs[0].ref;
-    pendingDoc = q.docs[0].data();
+    pendingRef = matchDoc.ref;
+    pendingDoc = matchDoc.data();
   } catch (err) {
     console.error('[Webhook] Firestore query failed for event', eventId + ':', err);
     return res.status(500).json({ error: 'Internal error' });
