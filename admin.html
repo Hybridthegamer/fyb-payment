@@ -409,6 +409,89 @@
       display: block;
     }
 
+    /* ─── BANK SELECT ─────────────────────── */
+    select.fi {
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237A7A7A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 40px;
+    }
+    select.fi option { background: #1C1C1C; color: #F4F4F4; }
+    select.fi:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ─── WITHDRAW STEPS ──────────────────── */
+    .step-label {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    /* ─── VERIFIED ACCOUNT BOX ────────────── */
+    .verified-box {
+      background: var(--green-glow);
+      border: 1px solid var(--green-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+    .vb-name { font-size: 15px; font-weight: 600; color: var(--green-light); margin-bottom: 3px; }
+    .vb-detail { font-size: 12px; color: var(--muted); }
+
+    /* ─── VERIFY RESULT ───────────────────── */
+    .verify-result {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+    }
+    .verify-result.error {
+      background: rgba(180,30,30,0.10);
+      border: 1px solid rgba(220,60,60,0.4);
+      color: #f87171;
+      display: block;
+    }
+
+    /* ─── BTN VERIFY ──────────────────────── */
+    .btn-verify {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--green-border);
+      padding: 13px 24px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+      margin-top: 4px;
+    }
+    .btn-verify:hover { background: var(--green-glow); border-color: var(--green-light); }
+    .btn-verify:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* ─── WITHDRAW ACTIONS ────────────────── */
+    .w-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+
+    /* ─── BTN CHANGE ──────────────────────── */
+    .btn-change {
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 13px 18px;
+      border-radius: 10px;
+      font-family: var(--font-b);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-change:hover { border-color: var(--green); color: var(--text); }
+
     /* ─── ERROR BANNER ────────────────────── */
     .error-banner {
       background: rgba(180, 30, 30, 0.10);
@@ -545,24 +628,45 @@
     <!-- SECTION 4: Withdraw Funds -->
     <h2 class="section-title">WITHDRAW FUNDS</h2>
     <div class="withdraw-card">
-      <div class="fg">
-        <label class="fl" for="w-amount">Amount (₦)</label>
-        <input class="fi" type="number" id="w-amount" placeholder="e.g. 50000" min="1" step="1" />
+
+      <!-- Step 1: Select bank & verify account -->
+      <div id="w-step-1">
+        <p class="step-label">Step 1 of 2 — Verify destination account</p>
+        <div class="fg">
+          <label class="fl" for="w-bank-select">Destination Bank</label>
+          <select class="fi" id="w-bank-select" disabled>
+            <option value="">Loading banks…</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl" for="w-account-number">Account Number</label>
+          <input class="fi" type="text" id="w-account-number" placeholder="10-digit account number" maxlength="10" inputmode="numeric" />
+        </div>
+        <button class="btn-verify" id="btn-verify-account">Verify Account</button>
+        <div class="verify-result" id="verify-result"></div>
       </div>
-      <div class="fg">
-        <label class="fl" for="w-bank-code">Destination Bank Code</label>
-        <input class="fi" type="text" id="w-bank-code" placeholder="e.g. 044 for Access Bank" />
+
+      <!-- Step 2: Enter amount & remarks (shown after verification) -->
+      <div id="w-step-2" style="display:none;">
+        <p class="step-label">Step 2 of 2 — Enter transfer details</p>
+        <div class="verified-box" id="verified-box"></div>
+        <div class="fg">
+          <label class="fl" for="w-amount">Amount (₦)</label>
+          <input class="fi" type="number" id="w-amount" placeholder="e.g. 50000" min="1" step="1" />
+        </div>
+        <div class="fg">
+          <label class="fl" for="w-remarks">Remarks</label>
+          <input class="fi" type="text" id="w-remarks" placeholder='e.g. FYB 2026 Committee Funds' />
+        </div>
+        <div class="w-actions">
+          <button class="btn-change" id="btn-change-acct">← Change Account</button>
+          <button class="btn-withdraw" id="btn-withdraw">Withdraw Funds</button>
+        </div>
       </div>
-      <div class="fg">
-        <label class="fl" for="w-account-number">Destination Account Number</label>
-        <input class="fi" type="text" id="w-account-number" placeholder="e.g. 0123456789" />
-      </div>
-      <div class="fg">
-        <label class="fl" for="w-narration">Narration</label>
-        <input class="fi" type="text" id="w-narration" placeholder='e.g. FYB 2026 Committee Funds' />
-      </div>
-      <button class="btn-withdraw" id="btn-withdraw">Withdraw</button>
+
+      <!-- Result message (always visible at bottom) -->
       <div class="withdraw-result" id="withdraw-result"></div>
+
     </div>
   </div>
 </div>
@@ -586,6 +690,7 @@
 
   // ── Auth state ────────────────────────────────────────────
   let currentUser = null;
+  let verifiedAccount = null; // set after successful bank name enquiry
 
   auth.onAuthStateChanged(user => {
     if (user) {
@@ -692,6 +797,7 @@
     updateUserChip(currentUser);
     renderDashboard(data);
     showScreen('screen-dashboard');
+    loadBanks();
   }
 
   // ── Render dashboard ──────────────────────────────────────
@@ -823,20 +929,129 @@
     });
   });
 
-  // ── Withdraw ──────────────────────────────────────────────
+  // ── Load supported banks into dropdown ────────────────────
+  async function loadBanks() {
+    const select = document.getElementById('w-bank-select');
+    select.innerHTML = '<option value="">Loading banks…</option>';
+    select.disabled = true;
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch('/api/admin-banks', {
+        headers: { 'Authorization': 'Bearer ' + idToken },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to load banks');
+
+      const banks = data.banks || [];
+      select.innerHTML = '<option value="">Select a bank…</option>';
+      banks.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.bankcode;
+        opt.dataset.name = b.bankname;
+        opt.textContent = b.bankname;
+        select.appendChild(opt);
+      });
+      select.disabled = false;
+    } catch (err) {
+      select.innerHTML = '<option value="">Failed to load banks — refresh to retry</option>';
+      console.error('[loadBanks]', err);
+    }
+  }
+
+  // ── Verify Account (bank name enquiry) ────────────────────
+  document.getElementById('btn-verify-account').addEventListener('click', async () => {
+    const select  = document.getElementById('w-bank-select');
+    const accNum  = document.getElementById('w-account-number').value.trim();
+    const bankCode = select.value;
+    const bankName = select.selectedIndex >= 0
+      ? (select.options[select.selectedIndex].dataset.name || '')
+      : '';
+    const resultEl = document.getElementById('verify-result');
+
+    resultEl.className = 'verify-result';
+    resultEl.textContent = '';
+
+    if (!bankCode) {
+      resultEl.className = 'verify-result error';
+      resultEl.textContent = 'Please select a destination bank.';
+      return;
+    }
+    if (!accNum || accNum.length !== 10 || !/^\d{10}$/.test(accNum)) {
+      resultEl.className = 'verify-result error';
+      resultEl.textContent = 'Please enter a valid 10-digit account number.';
+      return;
+    }
+
+    const btn = document.getElementById('btn-verify-account');
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
+
+    try {
+      const idToken = await currentUser.getIdToken(true);
+      const res = await fetch('/api/admin-bank-enquiry', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body:    JSON.stringify({ bankCode, accountNumber: accNum }),
+      });
+      const data = await res.json();
+
+      if (res.status === 403) { showDenied(data.error || 'Access denied.'); return; }
+
+      if (!res.ok || !data.success) {
+        resultEl.className = 'verify-result error';
+        resultEl.textContent = 'Verification failed: ' + (data.error || JSON.stringify(data.details || data));
+        return;
+      }
+
+      const accountName = data.data?.accountName || data.data?.account_name || '';
+      if (!accountName) {
+        resultEl.className = 'verify-result error';
+        resultEl.textContent = 'Could not retrieve account name. Check the bank code and account number.';
+        return;
+      }
+
+      verifiedAccount = { accountName, bankCode, bankName, accountNumber: accNum };
+
+      document.getElementById('verified-box').innerHTML =
+        `<div class="vb-name">${accountName}</div>` +
+        `<div class="vb-detail">${bankName} &middot; ${accNum}</div>`;
+
+      document.getElementById('w-step-1').style.display = 'none';
+      document.getElementById('w-step-2').style.display = 'block';
+      document.getElementById('withdraw-result').className = 'withdraw-result';
+    } catch (err) {
+      resultEl.className = 'verify-result error';
+      resultEl.textContent = 'Request failed: ' + err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Verify Account';
+    }
+  });
+
+  // ── Change Account (back to step 1) ──────────────────────
+  document.getElementById('btn-change-acct').addEventListener('click', () => {
+    verifiedAccount = null;
+    document.getElementById('w-step-2').style.display = 'none';
+    document.getElementById('w-step-1').style.display = 'block';
+    document.getElementById('verify-result').className = 'verify-result';
+    document.getElementById('withdraw-result').className = 'withdraw-result';
+    document.getElementById('w-amount').value = '';
+    document.getElementById('w-remarks').value = '';
+  });
+
+  // ── Withdraw Funds ────────────────────────────────────────
   document.getElementById('btn-withdraw').addEventListener('click', async () => {
+    if (!verifiedAccount) return;
+
     const amountRaw = document.getElementById('w-amount').value.trim();
-    const bankCode  = document.getElementById('w-bank-code').value.trim();
-    const accNum    = document.getElementById('w-account-number').value.trim();
-    const narration = document.getElementById('w-narration').value.trim();
+    const remarks   = document.getElementById('w-remarks').value.trim();
     const resultEl  = document.getElementById('withdraw-result');
 
     resultEl.className = 'withdraw-result';
-    resultEl.style.display = 'none';
 
-    if (!amountRaw || !bankCode || !accNum || !narration) {
+    if (!amountRaw || !remarks) {
       resultEl.className = 'withdraw-result error';
-      resultEl.textContent = 'Please fill in all fields before withdrawing.';
+      resultEl.textContent = 'Please fill in the amount and remarks.';
       return;
     }
 
@@ -849,53 +1064,58 @@
 
     const confirmed = window.confirm(
       `Confirm withdrawal:\n\n` +
-      `Amount: ₦${amount.toLocaleString('en-NG')}\n` +
-      `Bank Code: ${bankCode}\n` +
-      `Account: ${accNum}\n` +
-      `Narration: ${narration}\n\n` +
+      `To:      ${verifiedAccount.accountName}\n` +
+      `Bank:    ${verifiedAccount.bankName}\n` +
+      `Account: ${verifiedAccount.accountNumber}\n` +
+      `Amount:  ₦${amount.toLocaleString('en-NG')}\n` +
+      `Remarks: ${remarks}\n\n` +
       `This action cannot be undone.`
     );
     if (!confirmed) return;
 
     const btn = document.getElementById('btn-withdraw');
     btn.disabled = true;
-    btn.textContent = 'Processing...';
+    btn.textContent = 'Processing…';
 
     try {
       const idToken = await currentUser.getIdToken(true);
       const res = await fetch('/api/admin-withdraw', {
         method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': 'Bearer ' + idToken,
-        },
-        body: JSON.stringify({ amount, destinationBankCode: bankCode, destinationAccountNumber: accNum, narration }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify({
+          amount,
+          destinationBankCode:    verifiedAccount.bankCode,
+          destinationAccountNumber: verifiedAccount.accountNumber,
+          destinationAccountName: verifiedAccount.accountName,
+          destinationBankName:    verifiedAccount.bankName,
+          remarks,
+        }),
       });
       const data = await res.json();
 
-      if (res.status === 403) {
-        showDenied(data.error || 'Access denied.');
-        return;
-      }
+      if (res.status === 403) { showDenied(data.error || 'Access denied.'); return; }
 
       if (!res.ok || !data.success) {
         resultEl.className = 'withdraw-result error';
         resultEl.textContent = 'Withdrawal failed: ' + (data.error || JSON.stringify(data.details || data));
       } else {
+        const ref = data.reference || data.result?.data?.reference || data.result?.reference || '';
         resultEl.className = 'withdraw-result success';
-        resultEl.textContent = 'Withdrawal initiated successfully. Reference: ' +
-          (data.result?.reference || data.result?.data?.reference || JSON.stringify(data.result));
-        document.getElementById('w-amount').value = '';
-        document.getElementById('w-bank-code').value = '';
+        resultEl.textContent = 'Withdrawal initiated successfully.' + (ref ? ' Reference: ' + ref : '');
+        verifiedAccount = null;
+        document.getElementById('w-step-2').style.display = 'none';
+        document.getElementById('w-step-1').style.display = 'block';
         document.getElementById('w-account-number').value = '';
-        document.getElementById('w-narration').value = '';
+        document.getElementById('w-bank-select').selectedIndex = 0;
+        document.getElementById('w-amount').value = '';
+        document.getElementById('w-remarks').value = '';
       }
     } catch (err) {
       resultEl.className = 'withdraw-result error';
       resultEl.textContent = 'Request failed: ' + err.message;
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Withdraw';
+      btn.textContent = 'Withdraw Funds';
     }
   });
 </script>

@@ -1,5 +1,6 @@
 // api/admin-withdraw.js
-// Initiates a withdrawal from the organizer FossaPay wallet to a specified bank account.
+// Initiates an inter-bank transfer from the organizer FossaPay account.
+// Requires prior bank name enquiry to obtain destinationAccountName + destinationBankName.
 // Protected by Firebase ID token + ADMIN_EMAIL check.
 //
 // Required environment variables:
@@ -7,6 +8,7 @@
 // FIREBASE_PRIVATE_KEY, ADMIN_EMAIL
 
 const admin = require('firebase-admin');
+const { randomUUID } = require('crypto');
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -47,68 +49,84 @@ module.exports = async function handler(req, res) {
     return res.status(403).json({ error: 'Access denied. You are not the admin.' });
   }
 
-  const { amount, destinationBankCode, destinationAccountNumber, narration } = req.body || {};
+  const {
+    amount,
+    destinationBankCode,
+    destinationAccountNumber,
+    destinationAccountName,
+    destinationBankName,
+    remarks,
+  } = req.body || {};
 
-  if (!amount || !destinationBankCode || !destinationAccountNumber || !narration) {
-    return res.status(400).json({ error: 'Missing required fields: amount, destinationBankCode, destinationAccountNumber, narration' });
+  if (!amount || !destinationBankCode || !destinationAccountNumber || !destinationAccountName || !destinationBankName || !remarks) {
+    return res.status(400).json({
+      error: 'Missing required fields: amount, destinationBankCode, destinationAccountNumber, destinationAccountName, destinationBankName, remarks',
+    });
   }
   if (typeof amount !== 'number' || amount <= 0) {
     return res.status(400).json({ error: 'Amount must be a positive number' });
   }
 
-  // Read walletId from Firestore config
-  let walletId;
+  // Read customerId from Firestore config
+  let customerId;
   try {
     const configSnap = await db.collection('config').doc('fossapay').get();
     if (!configSnap.exists) {
       return res.status(500).json({ error: 'config/fossapay not found. Run setup first.' });
     }
-    walletId = configSnap.data().walletId;
+    customerId = configSnap.data().customerId;
+    if (!customerId) {
+      return res.status(500).json({ error: 'customerId not found in config/fossapay.' });
+    }
   } catch (err) {
     return res.status(500).json({ error: 'Failed to read Firestore config', message: err.message });
   }
 
-  // Initiate withdrawal via FossaPay
-  // NOTE: If FossaPay returns an error about the endpoint path, check Vercel logs
-  // for the raw response and update the URL accordingly.
-  let withdrawalResult;
+  // Generate a unique reference for this transfer
+  const reference = `FYB-${Date.now()}-${randomUUID().split('-')[0].toUpperCase()}`;
+
+  // Initiate inter-bank transfer via FossaPay
+  let transferResult;
   try {
-    const withdrawRes = await fetch(
-      'https://api-production.fossapay.com/api/v1/wallets/fiat/transfer',
+    const transferRes = await fetch(
+      'https://api-production.fossapay.com/api/v1/transfers/fiat/inter-bank',
       {
-        method:  'POST',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key':    process.env.FOSSAPAY_SECRET_KEY,
         },
         body: JSON.stringify({
-          walletId,
-          amount,
+          customerId,
           destinationBankCode,
+          destinationAccountName,
           destinationAccountNumber,
-          narration,
+          destinationBankName,
+          reference,
+          remarks,
+          amount,
         }),
       }
     );
 
-    const rawWithdraw = await withdrawRes.text();
-    console.log('[admin-withdraw] Withdrawal raw response:', rawWithdraw);
+    const rawTransfer = await transferRes.text();
+    console.log('[admin-withdraw] Transfer raw response:', rawTransfer);
 
     try {
-      withdrawalResult = JSON.parse(rawWithdraw);
+      transferResult = JSON.parse(rawTransfer);
     } catch {
-      withdrawalResult = { raw: rawWithdraw };
+      transferResult = { raw: rawTransfer };
     }
 
-    if (!withdrawRes.ok) {
+    if (!transferRes.ok) {
       return res.status(500).json({
-        error:   'FossaPay withdrawal failed',
-        details: withdrawalResult,
+        error:   'FossaPay transfer failed',
+        details: transferResult,
       });
     }
   } catch (err) {
-    return res.status(500).json({ error: 'Withdrawal request threw an exception', message: err.message });
+    return res.status(500).json({ error: 'Transfer request threw an exception', message: err.message });
   }
 
-  return res.status(200).json({ success: true, result: withdrawalResult });
+  return res.status(200).json({ success: true, reference, result: transferResult });
 };
