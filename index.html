@@ -6,6 +6,14 @@
   <title>FYB Week — Outfit Payment Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Warm up the Firebase SDK + auth/firestore endpoints early so the first
+       sign-in and data read don't pay the TLS/DNS cost serially. Big win on
+       mobile networks and under load. -->
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://fyb-payment.firebaseapp.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -1030,6 +1038,44 @@
   const auth = firebase.auth();
   const db   = firebase.firestore();
 
+  // Keep the session across reloads/redirects. LOCAL is the web default, but we
+  // set it explicitly so the redirect-based sign-in flow (below) reliably
+  // restores the user when the browser navigates back from Google.
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
+    console.warn('[Auth] Could not set LOCAL persistence:', err);
+  });
+
+  // Friendly, actionable messages for the common Firebase auth error codes.
+  // Returns null when there is nothing useful to show the user (e.g. they
+  // cancelled, or a popup was blocked and we are about to retry via redirect).
+  function authErrorMessage(code) {
+    switch (code) {
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+      case 'auth/user-cancelled':
+        return null; // user backed out — not an error worth alerting on
+      case 'auth/network-request-failed':
+        return 'Network problem. Check your internet connection and try again.';
+      case 'auth/unauthorized-domain':
+        return 'Sign-in is not enabled for this address yet. Please contact the admin.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Please wait a moment, then try again.';
+      case 'auth/web-storage-unsupported':
+        return 'Your browser is blocking sign-in storage. Disable private/incognito mode or try another browser.';
+      default:
+        return 'Sign-in failed. Please try again.';
+    }
+  }
+
+  // After a redirect-based sign-in, Google sends the user back to this page.
+  // The successful case is handled by onAuthStateChanged; here we only surface
+  // any error that happened during the redirect so it isn't swallowed silently.
+  auth.getRedirectResult().catch(err => {
+    console.error('[Auth] getRedirectResult:', err);
+    const msg = authErrorMessage(err.code);
+    if (msg) alert(msg);
+  });
+
   // ── Auth state observer ────────────────────────────────
   let _firstAuthCheck = true;
   auth.onAuthStateChanged(user => {
@@ -1056,13 +1102,53 @@
     _firstAuthCheck = false;
   });
 
+  // In-app browsers (WhatsApp, Instagram, Facebook, etc.) and many mobile
+  // browsers block popups outright, so signInWithPopup can NEVER succeed there —
+  // that was the source of the recurring "Sign-in failed" reports. Detect those
+  // environments and use a full-page redirect, which works everywhere.
+  function prefersRedirectSignIn() {
+    const ua = navigator.userAgent || '';
+    const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|WhatsApp|Snapchat|MicroMessenger|; wv\)|WebView/i.test(ua);
+    const isMobile     = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+    return inAppBrowser || isMobile;
+  }
+
+  function redirectSignIn(provider, btn) {
+    auth.signInWithRedirect(provider).catch(err => {
+      console.error('[Auth] redirect:', err);
+      alert(authErrorMessage(err.code) || 'Sign-in failed. Please try again.');
+      if (btn) btn.disabled = false;
+    });
+  }
+
   function signInWithGoogle() {
     const btn = document.getElementById('btn-google-signin');
     btn.disabled = true;
     const provider = new firebase.auth.GoogleAuthProvider();
+    // Always show the account chooser so a shared device can switch students.
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    // Skip the doomed popup attempt entirely on mobile / in-app browsers.
+    if (prefersRedirectSignIn()) {
+      redirectSignIn(provider, btn);
+      return;
+    }
+
     auth.signInWithPopup(provider).catch(err => {
-      console.error('[Auth]', err);
-      alert('Sign-in failed. Please try again.');
+      console.error('[Auth] popup:', err);
+      // Popup was blocked or isn't supported here — fall back to redirect.
+      const popupFailed = [
+        'auth/popup-blocked',
+        'auth/operation-not-supported-in-this-environment',
+        'auth/internal-error',
+        'auth/web-storage-unsupported',
+      ].includes(err.code);
+      if (popupFailed) {
+        redirectSignIn(provider, btn);
+        return;
+      }
+      const msg = authErrorMessage(err.code);
+      if (msg) alert(msg);
       btn.disabled = false;
     });
   }
