@@ -21,9 +21,6 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 module.exports = async function handler(req, res) {
-  console.log('[Webhook Debug] req.body type at entry:', typeof req.body);
-  console.log('[Webhook Debug] req.body defined:', req.body !== undefined);
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -35,12 +32,6 @@ module.exports = async function handler(req, res) {
     req.on('end', resolve);
     req.on('error', reject);
   });
-
-  console.log('[Webhook Debug] rawBody length:', rawBody.length);
-  console.log('[Webhook Debug] rawBody first 100 chars:', rawBody.substring(0, 100));
-
-  // Temporary: log all headers to confirm correct signature header name — remove after first successful webhook
-  console.log('[Webhook] Incoming headers:', JSON.stringify(req.headers));
 
   // Parse body once — needed for sig verification and event processing
   let payload;
@@ -59,15 +50,13 @@ module.exports = async function handler(req, res) {
     .createHmac('sha256', webhookSecret)
     .update(dataString)
     .digest('hex');
-  const match = crypto.timingSafeEqual(
-    Buffer.from(hash, 'hex'),
-    Buffer.from(receivedSig, 'hex')
-  );
-
-  console.log('[Webhook Debug] dataString length:', dataString.length);
-  console.log('[Webhook Debug] dataString first 100 chars:', dataString.substring(0, 100));
-  console.log('[Webhook Debug] Received sig:', receivedSig ? receivedSig.substring(0, 20) + '...' : 'NONE');
-  console.log('[Webhook Debug] webhookSecret length:', webhookSecret.length);
+  // Guard against malformed/empty signatures: timingSafeEqual throws if the two
+  // buffers differ in length, which would 500 instead of cleanly rejecting.
+  const expectedBuf = Buffer.from(hash, 'hex');
+  const receivedBuf = Buffer.from(receivedSig, 'hex');
+  const match =
+    expectedBuf.length === receivedBuf.length &&
+    crypto.timingSafeEqual(expectedBuf, receivedBuf);
 
   if (!match) {
     console.error('[Webhook] Signature mismatch — possible tampered or replayed request');
@@ -78,21 +67,21 @@ module.exports = async function handler(req, res) {
   const eventType = payload.eventType || payload.event;
   const eventId   = payload.eventId   || payload.event_id;
 
-  console.log('[Webhook Debug] eventType:', eventType);
-  console.log('[Webhook Debug] eventId:', eventId);
-  console.log('[Webhook Debug] data keys:', data ? Object.keys(data).join(', ') : 'null');
-
   // Only process deposit.completed — acknowledge everything else immediately
   if (eventType !== 'deposit.completed') {
-    console.log('[Webhook Debug] Ignoring non-deposit event:', eventType);
     return res.status(200).json({ received: true });
   }
 
   const receivedAmount     = data?.amount;
   // FossaPay uses camelCase — try both forms
   const fossaTransactionId = data?.transactionId || data?.transaction_id;
-  console.log('[Webhook Debug] fossaTransactionId:', fossaTransactionId);
-  console.log('[Webhook Debug] receivedAmount:', data?.amount);
+
+  // Without a transaction id we can't dedupe or key the processed-events doc;
+  // acknowledge so FossaPay stops retrying, but take no action.
+  if (!fossaTransactionId) {
+    console.warn('[Webhook] Missing transactionId on deposit.completed. Event ID:', eventId);
+    return res.status(200).json({ received: true });
+  }
 
   // Idempotency: check if this transaction was already processed
   const existingPayment = await db.collection('processedEvents').doc(fossaTransactionId).get();
@@ -106,9 +95,6 @@ module.exports = async function handler(req, res) {
   // subtotal stored as expectedAmount in initiate-payment.js (the fee markup
   // covers FossaPay's cut). Round receivedAmount to the nearest integer before
   // querying so a "4500.00" string matches the integer expectedAmount.
-  console.log('[Webhook Debug] Full data object keys:', data ? Object.keys(data).join(', ') : 'null');
-  console.log('[Webhook Debug] data.amount:', data?.amount);
-  console.log('[Webhook Debug] queryAmount:', Math.round(data?.amount));
   const queryAmount = Math.round(receivedAmount);
 
   // With the shared-account model all students pay to the same organizer account.
