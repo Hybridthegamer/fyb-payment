@@ -585,6 +585,27 @@
       </div>
     </div>
 
+    <!-- SECTION 1b: New Payment Stack (FossaPay) standalone balance -->
+    <h2 class="section-title">NEW PAYMENT STACK (FOSSAPAY)</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">FossaPay Net Collected</div>
+        <div class="stat-value" id="stat-fossapay-net">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Deposits</div>
+        <div class="stat-value" id="stat-fossapay-deposits">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Withdrawals</div>
+        <div class="stat-value" id="stat-fossapay-withdrawals">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">FossaPay Transactions</div>
+        <div class="stat-value" id="stat-fossapay-count">—</div>
+      </div>
+    </div>
+
     <!-- SECTION 2: Student Payments -->
     <h2 class="section-title">STUDENT PAYMENTS</h2>
     <div class="table-wrap">
@@ -756,6 +777,21 @@
     try { return new Date(d).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }); }
     catch { return d; }
   }
+  function fmtDateTime(d) {
+    if (!d) return '—';
+    try {
+      return new Date(d).toLocaleString('en-NG', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return d; }
+  }
+  // Parse a value into a sortable epoch (0 when unparseable, so it sinks to the bottom)
+  function toTimestamp(d) {
+    if (!d) return 0;
+    const t = new Date(d).getTime();
+    return isNaN(t) ? 0 : t;
+  }
 
   // ── Load dashboard ────────────────────────────────────────
   async function loadDashboard() {
@@ -838,7 +874,15 @@
       return;
     }
 
-    payments.forEach(p => {
+    // Order by most recent transaction date (newest first) so records aren't scattered
+    const latestTxTime = p => {
+      const txns = Array.isArray(p.transactions) ? p.transactions : [];
+      const times = txns.map(t => toTimestamp(t.date)).filter(Boolean);
+      return times.length ? Math.max(...times) : 0;
+    };
+    const sorted = payments.slice().sort((a, b) => latestTxTime(b) - latestTxTime(a));
+
+    sorted.forEach(p => {
       const paidItems = Array.isArray(p.paidItems) ? p.paidItems.join(', ') : (p.paidItems || '—');
 
       const txns = Array.isArray(p.transactions) ? p.transactions : [];
@@ -875,11 +919,20 @@
     });
   }
 
+  // Reset the FossaPay standalone stat cards (used when no transaction data is available)
+  function resetFossaPayStats() {
+    document.getElementById('stat-fossapay-net').textContent = '—';
+    document.getElementById('stat-fossapay-deposits').textContent = '—';
+    document.getElementById('stat-fossapay-withdrawals').textContent = '—';
+    document.getElementById('stat-fossapay-count').textContent = '—';
+  }
+
   function renderFossaPayTransactions(txList) {
     const tbody = document.getElementById('fossapay-tbody');
     tbody.innerHTML = '';
 
     if (!Array.isArray(txList) || !txList.length) {
+      resetFossaPayStats();
       const tr = document.createElement('tr');
       tr.className = 'empty-row';
       tr.innerHTML = '<td colspan="5">Transaction data unavailable — check Vercel logs for raw FossaPay response.</td>';
@@ -887,13 +940,37 @@
       return;
     }
 
-    txList.forEach(tx => {
+    const isDebitTx = type =>
+      String(type).toLowerCase().includes('debit') ||
+      String(type).toLowerCase().includes('withdraw');
+
+    // Order by date & time, newest first, so transactions aren't scattered
+    const sorted = txList.slice().sort((a, b) =>
+      toTimestamp(b.date || b.createdAt || b.transactionDate) -
+      toTimestamp(a.date || a.createdAt || a.transactionDate)
+    );
+
+    // Standalone FossaPay balance — like a bank account: deposits add, withdrawals subtract
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    sorted.forEach(tx => {
+      const amt = Number(tx.amount ?? tx.value);
+      if (isNaN(amt)) return;
+      if (isDebitTx(tx.type || tx.transactionType)) totalWithdrawals += amt;
+      else totalDeposits += amt;
+    });
+    document.getElementById('stat-fossapay-net').textContent = fmt(totalDeposits - totalWithdrawals);
+    document.getElementById('stat-fossapay-deposits').textContent = fmt(totalDeposits);
+    document.getElementById('stat-fossapay-withdrawals').textContent = fmt(totalWithdrawals);
+    document.getElementById('stat-fossapay-count').textContent = sorted.length;
+
+    sorted.forEach(tx => {
       const type = tx.type || tx.transactionType || '—';
       const amount = tx.amount ?? tx.value ?? null;
-      const isDebit = String(type).toLowerCase().includes('debit') || String(type).toLowerCase().includes('withdraw');
+      const isDebit = isDebitTx(type);
       const ref = tx.reference || tx.transactionReference || tx.id || '—';
       const desc = tx.narration || tx.description || tx.remark || '—';
-      const date = fmtDate(tx.date || tx.createdAt || tx.transactionDate);
+      const date = fmtDateTime(tx.date || tx.createdAt || tx.transactionDate);
 
       const tr = document.createElement('tr');
       const tdDate = document.createElement('td');
