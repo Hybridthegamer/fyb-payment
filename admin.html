@@ -838,7 +838,7 @@
 
   // ── Render dashboard ──────────────────────────────────────
   function renderDashboard(data) {
-    const { walletInfo, transactions, studentPayments, accountNumber } = data;
+    const { walletInfo, transactions, studentPayments, accountNumber, withdrawals } = data;
 
     // Stats
     const balance = walletInfo?.data?.balance ?? walletInfo?.balance ?? null;
@@ -853,13 +853,14 @@
     // Student payments table
     renderStudentPayments(studentPayments || []);
 
-    // FossaPay transactions table
+    // FossaPay transactions table — pass Firestore withdrawals and gross total so
+    // the net balance is computed from reliable Firestore data, not FossaPay type parsing.
     const txList =
       transactions?.data?.transactions ??
       transactions?.data ??
       transactions?.transactions ??
       null;
-    renderFossaPayTransactions(txList);
+    renderFossaPayTransactions(txList, withdrawals || [], totalCollected);
   }
 
   function renderStudentPayments(payments) {
@@ -919,20 +920,27 @@
     });
   }
 
-  // Reset the FossaPay standalone stat cards (used when no transaction data is available)
-  function resetFossaPayStats() {
-    document.getElementById('stat-fossapay-net').textContent = '—';
-    document.getElementById('stat-fossapay-deposits').textContent = '—';
-    document.getElementById('stat-fossapay-withdrawals').textContent = '—';
-    document.getElementById('stat-fossapay-count').textContent = '—';
-  }
-
-  function renderFossaPayTransactions(txList) {
+  // firestoreWithdrawals: array of withdrawal docs from the Firestore `withdrawals` collection.
+  // totalCollected: sum of all student totalPaid values (gross deposits from Firestore payments).
+  // Both are the authoritative sources for balance stats — independent of FossaPay's
+  // transaction type naming, which varies and can include fee entries that distort the maths.
+  function renderFossaPayTransactions(txList, firestoreWithdrawals, totalCollected) {
     const tbody = document.getElementById('fossapay-tbody');
     tbody.innerHTML = '';
 
+    // Authoritative net balance from Firestore:
+    //   gross collected (from payments collection) − total withdrawn (from withdrawals collection)
+    const totalWithdrawnFirestore = firestoreWithdrawals.reduce(
+      (sum, w) => sum + (Number(w.amount) || 0), 0
+    );
+    const netFirestore = totalCollected - totalWithdrawnFirestore;
+
+    document.getElementById('stat-fossapay-net').textContent = fmt(netFirestore);
+    document.getElementById('stat-fossapay-deposits').textContent = fmt(totalCollected);
+    document.getElementById('stat-fossapay-withdrawals').textContent = fmt(totalWithdrawnFirestore);
+
     if (!Array.isArray(txList) || !txList.length) {
-      resetFossaPayStats();
+      document.getElementById('stat-fossapay-count').textContent = '—';
       const tr = document.createElement('tr');
       tr.className = 'empty-row';
       tr.innerHTML = '<td colspan="5">Transaction data unavailable — check Vercel logs for raw FossaPay response.</td>';
@@ -940,28 +948,25 @@
       return;
     }
 
-    const isDebitTx = type =>
-      String(type).toLowerCase().includes('debit') ||
-      String(type).toLowerCase().includes('withdraw');
+    // isDebitTx is used only for table row colouring — it does NOT affect balance stats.
+    // Balance stats come from Firestore (above). We cast a wide net here to correctly
+    // colour any debit-like type FossaPay may send (inter-bank transfers, fees, etc.).
+    const isDebitTx = type => {
+      const t = String(type).toLowerCase();
+      return t.includes('debit') ||
+             t.includes('withdraw') ||
+             t.includes('transfer_out') ||
+             t.includes('outflow') ||
+             t.includes('outbound') ||
+             t === 'out';
+    };
 
-    // Order by date & time, newest first, so transactions aren't scattered
+    // Order by date & time, newest first
     const sorted = txList.slice().sort((a, b) =>
       toTimestamp(b.date || b.createdAt || b.transactionDate) -
       toTimestamp(a.date || a.createdAt || a.transactionDate)
     );
 
-    // Standalone FossaPay balance — like a bank account: deposits add, withdrawals subtract
-    let totalDeposits = 0;
-    let totalWithdrawals = 0;
-    sorted.forEach(tx => {
-      const amt = Number(tx.amount ?? tx.value);
-      if (isNaN(amt)) return;
-      if (isDebitTx(tx.type || tx.transactionType)) totalWithdrawals += amt;
-      else totalDeposits += amt;
-    });
-    document.getElementById('stat-fossapay-net').textContent = fmt(totalDeposits - totalWithdrawals);
-    document.getElementById('stat-fossapay-deposits').textContent = fmt(totalDeposits);
-    document.getElementById('stat-fossapay-withdrawals').textContent = fmt(totalWithdrawals);
     document.getElementById('stat-fossapay-count').textContent = sorted.length;
 
     sorted.forEach(tx => {

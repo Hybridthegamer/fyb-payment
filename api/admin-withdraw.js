@@ -128,5 +128,29 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Transfer request threw an exception', message: err.message });
   }
 
+  // Persist the withdrawal so the dashboard can compute an accurate net balance
+  // without relying on FossaPay transaction-type parsing (which is unreliable).
+  try {
+    const fossaTransactionId =
+      transferResult?.data?.transactionId ||
+      transferResult?.data?.transaction_id ||
+      transferResult?.transactionId ||
+      null;
+    await db.collection('withdrawals').doc(reference).set({
+      reference,
+      amount,
+      destinationBankCode,
+      destinationAccountNumber,
+      destinationAccountName,
+      destinationBankName,
+      remarks,
+      fossaTransactionId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (logErr) {
+    // Log the error but do not fail the response — the transfer already succeeded
+    console.error('[admin-withdraw] Failed to log withdrawal to Firestore:', logErr);
+  }
+
   return res.status(200).json({ success: true, reference, result: transferResult });
 };
