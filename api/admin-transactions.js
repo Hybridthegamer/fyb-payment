@@ -101,6 +101,18 @@ module.exports = async function handler(req, res) {
     studentPayments = [];
   }
 
+  // Read all withdrawal records — written by admin-withdraw.js on every successful transfer
+  let withdrawals = [];
+  try {
+    const withdrawalsSnap = await db.collection('withdrawals').get();
+    withdrawalsSnap.forEach(doc => {
+      withdrawals.push({ id: doc.id, ...doc.data() });
+    });
+  } catch (err) {
+    console.error('[admin-transactions] Firestore withdrawals read failed:', err);
+    withdrawals = [];
+  }
+
   return res.status(200).json({
     success:         true,
     accountNumber,
@@ -108,5 +120,6 @@ module.exports = async function handler(req, res) {
     walletInfo,
     transactions,
     studentPayments,
+    withdrawals,
   });
 };
