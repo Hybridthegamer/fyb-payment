@@ -1102,15 +1102,24 @@
     _firstAuthCheck = false;
   });
 
-  // In-app browsers (WhatsApp, Instagram, Facebook, etc.) and many mobile
-  // browsers block popups outright, so signInWithPopup can NEVER succeed there —
-  // that was the source of the recurring "Sign-in failed" reports. Detect those
-  // environments and use a full-page redirect, which works everywhere.
+  // Why popup-first, even on mobile:
+  // This app is served from a different domain than its Firebase authDomain
+  // (app on *.vercel.app, authDomain on fyb-payment.firebaseapp.com). On browsers
+  // that partition third-party storage — Safari/iOS and modern Chrome — the
+  // signInWithRedirect flow cannot read its pending redirect state back out of
+  // the firebaseapp.com storage after Google sends the user back. The result:
+  // getRedirectResult() resolves null, onAuthStateChanged never sees the user,
+  // and the student lands back on the sign-in screen having "authorised" but not
+  // signed in. That was the recurring complaint. signInWithPopup round-trips the
+  // credential via postMessage to the opener and is immune to that partitioning,
+  // so it is the reliable path on modern mobile browsers (Firebase's own guidance
+  // for cross-domain setups). We therefore only force the full-page redirect for
+  // genuine in-app / embedded webviews (WhatsApp, Instagram, Facebook, etc.) that
+  // hard-block popups — there redirect is the only option available anyway.
   function prefersRedirectSignIn() {
     const ua = navigator.userAgent || '';
-    const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|WhatsApp|Snapchat|MicroMessenger|; wv\)|WebView/i.test(ua);
-    const isMobile     = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-    return inAppBrowser || isMobile;
+    const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|WhatsApp|Snapchat|MicroMessenger|GSA\/|; wv\)|WebView/i.test(ua);
+    return inAppBrowser;
   }
 
   function redirectSignIn(provider, btn) {
