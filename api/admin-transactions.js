@@ -113,6 +113,18 @@ module.exports = async function handler(req, res) {
     withdrawals = [];
   }
 
+  // Read the FossaPay ledger summary — maintained atomically by the webhook
+  // (deposits) and admin-withdraw (withdrawals). Balance = totalDeposits - totalWithdrawals.
+  let summary = { totalDeposits: 0, totalWithdrawals: 0, depositCount: 0, withdrawalCount: 0 };
+  try {
+    const summarySnap = await db.collection('summary').doc('fossapay').get();
+    if (summarySnap.exists) {
+      summary = { ...summary, ...summarySnap.data() };
+    }
+  } catch (err) {
+    console.error('[admin-transactions] Firestore summary read failed:', err);
+  }
+
   return res.status(200).json({
     success:         true,
     accountNumber,
@@ -121,5 +133,6 @@ module.exports = async function handler(req, res) {
     transactions,
     studentPayments,
     withdrawals,
+    summary,
   });
 };

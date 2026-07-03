@@ -83,9 +83,10 @@ Alternative: If you already have the account details from the FossaPay dashboard
 The admin dashboard is available at /admin. Only the email address set in ADMIN_EMAIL can access it.
 
 Features:
-- Wallet balance and account summary
-- Full list of student payments with details
-- FossaPay transaction history (deposits and withdrawals)
+- Account balance, total deposits, and total withdrawals (from the summary/fossapay ledger), plus the live FossaPay wallet balance for reference
+- Full list of student payments, with search and filters by gender, item paid for, and date
+- Full transaction history (deposits + withdrawals) with search, type, and date filters
+- FossaPay transaction feed (deposit-only view)
 - Initiate withdrawals directly from the dashboard
 
 Setup:
@@ -95,6 +96,19 @@ Setup:
 4. Any other Google account will be shown Access Denied and signed out immediately.
 
 Note on withdrawal endpoint: FossaPay's withdrawal API endpoint may differ from what is documented. If a withdrawal attempt returns an error, check Vercel logs for the raw FossaPay response (logged before parsing) and update the URL in api/admin-withdraw.js accordingly.
+
+### Ledger (summary/fossapay)
+
+The webhook and admin-withdraw endpoint atomically maintain a `summary/fossapay` Firestore document (`totalDeposits`, `totalWithdrawals`, `depositCount`, `withdrawalCount`) so the dashboard reads one cheap doc for balance stats instead of scanning the full `payments` and `withdrawals` collections on every load.
+
+If you're deploying this after already having existing payments/withdrawals data, run the one-time backfill script once so historical totals aren't zeroed out:
+
+```
+FIREBASE_PROJECT_ID=... FIREBASE_CLIENT_EMAIL=... FIREBASE_PRIVATE_KEY=... \
+  node scripts/backfill-summary.js
+```
+
+It's safe to re-run — it recomputes the totals from scratch each time rather than incrementing.
 
 ---
 

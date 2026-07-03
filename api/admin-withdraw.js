@@ -130,13 +130,18 @@ module.exports = async function handler(req, res) {
 
   // Persist the withdrawal so the dashboard can compute an accurate net balance
   // without relying on FossaPay transaction-type parsing (which is unreliable).
+  // Also increment the summary/fossapay ledger in the same batch so the two
+  // stay consistent with each other (though not with the external transfer,
+  // which has already completed by this point).
   try {
     const fossaTransactionId =
       transferResult?.data?.transactionId ||
       transferResult?.data?.transaction_id ||
       transferResult?.transactionId ||
       null;
-    await db.collection('withdrawals').doc(reference).set({
+
+    const batch = db.batch();
+    batch.set(db.collection('withdrawals').doc(reference), {
       reference,
       amount,
       destinationBankCode,
@@ -147,6 +152,12 @@ module.exports = async function handler(req, res) {
       fossaTransactionId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    batch.set(db.collection('summary').doc('fossapay'), {
+      totalWithdrawals: admin.firestore.FieldValue.increment(amount),
+      withdrawalCount:  admin.firestore.FieldValue.increment(1),
+      updatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await batch.commit();
   } catch (logErr) {
     // Log the error but do not fail the response — the transfer already succeeded
     console.error('[admin-withdraw] Failed to log withdrawal to Firestore:', logErr);
