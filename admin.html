@@ -506,6 +506,68 @@
     }
     .error-banner.visible { display: block; }
 
+    /* ─── SUB-STAT (PER-PROVIDER) GRID ────── */
+    .stats-grid.sub { grid-template-columns: repeat(4, 1fr); }
+    .stat-card.placeholder { opacity: .4; }
+
+    /* ─── FILTER TOOLBAR ──────────────────── */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .filter-bar .fi {
+      width: auto;
+      padding: 10px 13px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+    .filter-search {
+      flex: 1 1 220px;
+      min-width: 180px;
+    }
+    .filter-select {
+      flex: 0 0 auto;
+      min-width: 130px;
+    }
+    .filter-date {
+      flex: 0 0 auto;
+      width: 145px;
+      color-scheme: dark;
+    }
+    .btn-clear-filters {
+      background: none;
+      border: 1px solid var(--border-2);
+      color: var(--muted);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-family: var(--font-b);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+      white-space: nowrap;
+    }
+    .btn-clear-filters:hover { border-color: var(--green); color: var(--text); }
+    .filter-count {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* ─── TYPE BADGE ──────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+    .badge.deposit { background: var(--green-glow); color: var(--green-light); border: 1px solid var(--green-border); }
+    .badge.withdrawal { background: rgba(180,30,30,0.10); color: #f87171; border: 1px solid rgba(220,60,60,0.4); }
+
     /* ─── MOBILE ──────────────────────────── */
     @media (max-width: 700px) {
       .stats-grid { grid-template-columns: 1fr 1fr; }
@@ -568,15 +630,23 @@
     <h2 class="section-title">OVERVIEW</h2>
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">Wallet Balance</div>
+        <div class="stat-label">Account Balance</div>
+        <div class="stat-value" id="stat-account-balance">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Deposits</div>
+        <div class="stat-value" id="stat-total-deposits">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Withdrawals</div>
+        <div class="stat-value" id="stat-total-withdrawals">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Live Wallet Balance</div>
         <div class="stat-value" id="stat-balance">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Total Collected</div>
-        <div class="stat-value" id="stat-total-collected">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Payments Count</div>
+        <div class="stat-label">Students</div>
         <div class="stat-value" id="stat-payments-count">—</div>
       </div>
       <div class="stat-card">
@@ -585,29 +655,36 @@
       </div>
     </div>
 
-    <!-- SECTION 1b: New Payment Stack (FossaPay) standalone balance -->
-    <h2 class="section-title">NEW PAYMENT STACK (FOSSAPAY)</h2>
-    <div class="stats-grid">
+    <!-- SECTION 1b: Balance by provider -->
+    <h2 class="section-title">BALANCE BY PROVIDER</h2>
+    <div class="stats-grid sub">
       <div class="stat-card">
-        <div class="stat-label">FossaPay Net Collected</div>
-        <div class="stat-value" id="stat-fossapay-net">—</div>
+        <div class="stat-label">FossaPay Balance</div>
+        <div class="stat-value" id="stat-fossapay-balance">—</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Total Deposits</div>
-        <div class="stat-value" id="stat-fossapay-deposits">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Total Withdrawals</div>
-        <div class="stat-value" id="stat-fossapay-withdrawals">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">FossaPay Transactions</div>
-        <div class="stat-value" id="stat-fossapay-count">—</div>
+      <div class="stat-card placeholder">
+        <div class="stat-label">Paystack Balance</div>
+        <div class="stat-value" id="stat-paystack-balance">Not connected</div>
       </div>
     </div>
 
     <!-- SECTION 2: Student Payments -->
     <h2 class="section-title">STUDENT PAYMENTS</h2>
+    <div class="filter-bar">
+      <input class="fi filter-search" type="text" id="sp-search" placeholder="Search name, matric, email, phone…" />
+      <select class="fi filter-select" id="sp-gender">
+        <option value="">All Genders</option>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+      </select>
+      <select class="fi filter-select" id="sp-item">
+        <option value="">All Items</option>
+      </select>
+      <input class="fi filter-date" type="date" id="sp-date-from" title="From date" />
+      <input class="fi filter-date" type="date" id="sp-date-to" title="To date" />
+      <button class="btn-clear-filters" id="sp-clear">Clear Filters</button>
+    </div>
+    <div class="filter-count" id="sp-count"></div>
     <div class="table-wrap">
       <table id="student-payments-table">
         <thead>
@@ -627,26 +704,59 @@
       </table>
     </div>
 
-    <!-- SECTION 3: FossaPay Transactions -->
+    <!-- SECTION 3: Full Transaction History -->
+    <h2 class="section-title">FULL TRANSACTION HISTORY</h2>
+    <div class="filter-bar">
+      <input class="fi filter-search" type="text" id="th-search" placeholder="Search name, matric, reference…" />
+      <select class="fi filter-select" id="th-type">
+        <option value="">All Types</option>
+        <option value="deposit">Deposits</option>
+        <option value="withdrawal">Withdrawals</option>
+      </select>
+      <input class="fi filter-date" type="date" id="th-date-from" title="From date" />
+      <input class="fi filter-date" type="date" id="th-date-to" title="To date" />
+      <button class="btn-clear-filters" id="th-clear">Clear Filters</button>
+    </div>
+    <div class="filter-count" id="th-count"></div>
+    <div class="table-wrap">
+      <table id="history-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Name / Destination</th>
+            <th>Amount</th>
+            <th>Reference</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr class="empty-row"><td colspan="6">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SECTION 4: FossaPay Transactions -->
     <h2 class="section-title">FOSSAPAY TRANSACTIONS</h2>
     <div class="table-wrap">
       <table id="fossapay-table">
         <thead>
           <tr>
             <th>Date</th>
-            <th>Type</th>
+            <th>Student</th>
+            <th>Matric</th>
+            <th>Items</th>
             <th>Amount</th>
             <th>Reference</th>
-            <th>Description / Narration</th>
           </tr>
         </thead>
         <tbody id="fossapay-tbody">
-          <tr class="empty-row"><td colspan="5">Loading...</td></tr>
+          <tr class="empty-row"><td colspan="6">Loading...</td></tr>
         </tbody>
       </table>
     </div>
 
-    <!-- SECTION 4: Withdraw Funds -->
+    <!-- SECTION 5: Withdraw Funds -->
     <h2 class="section-title">WITHDRAW FUNDS</h2>
     <div class="withdraw-card">
 
@@ -773,24 +883,29 @@
     return '₦' + Number(n).toLocaleString('en-NG');
   }
   function fmtDate(d) {
-    if (!d) return '—';
-    try { return new Date(d).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }); }
-    catch { return d; }
+    const t = toTimestamp(d);
+    if (!t) return '—';
+    return new Date(t).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' });
   }
   function fmtDateTime(d) {
-    if (!d) return '—';
-    try {
-      return new Date(d).toLocaleString('en-NG', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
-    } catch { return d; }
+    const t = toTimestamp(d);
+    if (!t) return '—';
+    return new Date(t).toLocaleString('en-NG', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
   }
-  // Parse a value into a sortable epoch (0 when unparseable, so it sinks to the bottom)
+  // Parse a value into a sortable epoch (0 when unparseable, so it sinks to the bottom).
+  // Handles ISO strings (client-written dates) and Firestore Admin SDK Timestamps,
+  // which serialize over JSON as { _seconds, _nanoseconds } rather than ISO strings.
   function toTimestamp(d) {
     if (!d) return 0;
+    if (typeof d === 'object' && d._seconds != null) return d._seconds * 1000;
     const t = new Date(d).getTime();
     return isNaN(t) ? 0 : t;
+  }
+  function titleCase(s) {
+    return String(s || '').replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
   // ── Load dashboard ────────────────────────────────────────
@@ -836,31 +951,138 @@
     loadBanks();
   }
 
+  // ── Cached dashboard data + flattened transaction rows ────
+  // Populated once per load; filters below re-render from these without re-fetching.
+  let allStudentPayments = [];
+  let allHistoryRows = [];
+
+  // Flattens each student's nested `transactions` array (deposits) and the
+  // top-level `withdrawals` collection into one row shape for search/filter/sort.
+  function flattenHistory(studentPayments, withdrawals) {
+    const rows = [];
+    (studentPayments || []).forEach(p => {
+      (Array.isArray(p.transactions) ? p.transactions : []).forEach(t => {
+        const itemNames = Array.isArray(t.items) ? t.items.map(i => i.name || titleCase(i.id)) : [];
+        rows.push({
+          type: 'deposit',
+          provider: t.provider || 'fossapay',
+          date: t.date,
+          amount: Number(t.amount) || 0,
+          reference: t.ref || '—',
+          name: p.name || '—',
+          matric: p.matric || '',
+          email: p.email || '',
+          phone: p.phone || '',
+          gender: p.gender || '',
+          details: itemNames.join(', '),
+        });
+      });
+    });
+    (withdrawals || []).forEach(w => {
+      rows.push({
+        type: 'withdrawal',
+        provider: 'fossapay',
+        date: w.createdAt,
+        amount: Number(w.amount) || 0,
+        reference: w.reference || '—',
+        name: w.destinationAccountName || '—',
+        matric: '',
+        email: '',
+        phone: '',
+        gender: '',
+        details: w.remarks || '',
+      });
+    });
+    rows.sort((a, b) => toTimestamp(b.date) - toTimestamp(a.date));
+    return rows;
+  }
+
   // ── Render dashboard ──────────────────────────────────────
   function renderDashboard(data) {
-    const { walletInfo, transactions, studentPayments, accountNumber, withdrawals } = data;
+    const { walletInfo, studentPayments, accountNumber, withdrawals, summary } = data;
 
-    // Stats
-    const balance = walletInfo?.data?.balance ?? walletInfo?.balance ?? null;
+    allStudentPayments = studentPayments || [];
+    allHistoryRows = flattenHistory(allStudentPayments, withdrawals || []);
+
+    // Live wallet balance — external FossaPay figure, reference only
+    const liveBalance = walletInfo?.data?.balance ?? walletInfo?.balance ?? null;
     document.getElementById('stat-balance').textContent =
-      balance != null ? fmt(balance) : 'See logs';
+      liveBalance != null ? fmt(liveBalance) : 'See logs';
 
-    const totalCollected = (studentPayments || []).reduce((sum, p) => sum + (Number(p.totalPaid) || 0), 0);
-    document.getElementById('stat-total-collected').textContent = fmt(totalCollected);
-    document.getElementById('stat-payments-count').textContent = (studentPayments || []).length;
+    // Ledger totals: trust summary/fossapay (maintained atomically by the webhook
+    // and admin-withdraw); fall back to a full-scan sum if the ledger doc hasn't
+    // been backfilled yet, so the dashboard is never stuck showing zero.
+    const legacyTotalDeposits = allStudentPayments.reduce((sum, p) => sum + (Number(p.totalPaid) || 0), 0);
+    const legacyTotalWithdrawals = (withdrawals || []).reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+    const totalDeposits = summary?.totalDeposits || legacyTotalDeposits;
+    const totalWithdrawals = summary?.totalWithdrawals || legacyTotalWithdrawals;
+    const accountBalance = totalDeposits - totalWithdrawals;
+
+    document.getElementById('stat-account-balance').textContent = fmt(accountBalance);
+    document.getElementById('stat-total-deposits').textContent = fmt(totalDeposits);
+    document.getElementById('stat-total-withdrawals').textContent = fmt(totalWithdrawals);
+    document.getElementById('stat-payments-count').textContent = allStudentPayments.length;
     document.getElementById('stat-account-number').textContent = accountNumber || '—';
+    document.getElementById('stat-fossapay-balance').textContent = fmt(accountBalance);
 
-    // Student payments table
-    renderStudentPayments(studentPayments || []);
+    populateItemFilter(allStudentPayments);
+    applyStudentPaymentsFilter();
+    applyHistoryFilter();
+    renderFossaPayDeposits(allHistoryRows.filter(r => r.type === 'deposit'));
+  }
 
-    // FossaPay transactions table — pass Firestore withdrawals and gross total so
-    // the net balance is computed from reliable Firestore data, not FossaPay type parsing.
-    const txList =
-      transactions?.data?.transactions ??
-      transactions?.data ??
-      transactions?.transactions ??
-      null;
-    renderFossaPayTransactions(txList, withdrawals || [], totalCollected);
+  // ── Student Payments: filtering + render ───────────────────
+  function populateItemFilter(payments) {
+    const select = document.getElementById('sp-item');
+    const current = select.value;
+    const items = new Set();
+    payments.forEach(p => (Array.isArray(p.paidItems) ? p.paidItems : []).forEach(id => items.add(id)));
+
+    select.innerHTML = '<option value="">All Items</option>';
+    Array.from(items).sort().forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = titleCase(id);
+      select.appendChild(opt);
+    });
+    select.value = current && items.has(current) ? current : '';
+  }
+
+  function applyStudentPaymentsFilter() {
+    const search = document.getElementById('sp-search').value.trim().toLowerCase();
+    const gender = document.getElementById('sp-gender').value;
+    const item = document.getElementById('sp-item').value;
+    const dateFrom = document.getElementById('sp-date-from').value;
+    const dateTo = document.getElementById('sp-date-to').value;
+    const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
+    const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
+
+    const filtered = allStudentPayments.filter(p => {
+      if (gender && p.gender !== gender) return false;
+      if (item && !(Array.isArray(p.paidItems) && p.paidItems.includes(item))) return false;
+
+      const txns = Array.isArray(p.transactions) ? p.transactions : [];
+      if (fromTs != null || toTs != null) {
+        const inRange = txns.some(t => {
+          const ts = toTimestamp(t.date);
+          if (!ts) return false;
+          if (fromTs != null && ts < fromTs) return false;
+          if (toTs != null && ts > toTs) return false;
+          return true;
+        });
+        if (!inRange) return false;
+      }
+
+      if (search) {
+        const haystack = [p.name, p.matric, p.email, p.phone].join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    document.getElementById('sp-count').textContent =
+      `Showing ${filtered.length} of ${allStudentPayments.length} students`;
+    renderStudentPayments(filtered);
   }
 
   function renderStudentPayments(payments) {
@@ -870,7 +1092,7 @@
     if (!payments.length) {
       const tr = document.createElement('tr');
       tr.className = 'empty-row';
-      tr.innerHTML = '<td colspan="7">No payments yet</td>';
+      tr.innerHTML = '<td colspan="7">No matching payments</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -884,14 +1106,8 @@
     const sorted = payments.slice().sort((a, b) => latestTxTime(b) - latestTxTime(a));
 
     sorted.forEach(p => {
-      const paidItems = Array.isArray(p.paidItems) ? p.paidItems.join(', ') : (p.paidItems || '—');
-
-      const txns = Array.isArray(p.transactions) ? p.transactions : [];
-      let lastDate = '—';
-      if (txns.length) {
-        const dates = txns.map(t => t.date).filter(Boolean).sort();
-        lastDate = dates.length ? fmtDate(dates[dates.length - 1]) : '—';
-      }
+      const paidItems = Array.isArray(p.paidItems) ? p.paidItems.map(titleCase).join(', ') : (p.paidItems || '—');
+      const lastDate = fmtDate(latestTxTime(p) || null);
 
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
@@ -920,84 +1136,130 @@
     });
   }
 
-  // firestoreWithdrawals: array of withdrawal docs from the Firestore `withdrawals` collection.
-  // totalCollected: sum of all student totalPaid values (gross deposits from Firestore payments).
-  // Both are the authoritative sources for balance stats — independent of FossaPay's
-  // transaction type naming, which varies and can include fee entries that distort the maths.
-  function renderFossaPayTransactions(txList, firestoreWithdrawals, totalCollected) {
-    const tbody = document.getElementById('fossapay-tbody');
+  // ── Full Transaction History: filtering + render ───────────
+  function applyHistoryFilter() {
+    const search = document.getElementById('th-search').value.trim().toLowerCase();
+    const type = document.getElementById('th-type').value;
+    const dateFrom = document.getElementById('th-date-from').value;
+    const dateTo = document.getElementById('th-date-to').value;
+    const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
+    const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
+
+    const filtered = allHistoryRows.filter(r => {
+      if (type && r.type !== type) return false;
+      const ts = toTimestamp(r.date);
+      if (fromTs != null && (!ts || ts < fromTs)) return false;
+      if (toTs != null && (!ts || ts > toTs)) return false;
+      if (search) {
+        const haystack = [r.name, r.matric, r.email, r.phone, r.reference, r.details].join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    document.getElementById('th-count').textContent =
+      `Showing ${filtered.length} of ${allHistoryRows.length} transactions`;
+    renderHistory(filtered);
+  }
+
+  function renderHistory(rows) {
+    const tbody = document.getElementById('history-tbody');
     tbody.innerHTML = '';
 
-    // Authoritative net balance from Firestore:
-    //   gross collected (from payments collection) − total withdrawn (from withdrawals collection)
-    const totalWithdrawnFirestore = firestoreWithdrawals.reduce(
-      (sum, w) => sum + (Number(w.amount) || 0), 0
-    );
-    const netFirestore = totalCollected - totalWithdrawnFirestore;
-
-    document.getElementById('stat-fossapay-net').textContent = fmt(netFirestore);
-    document.getElementById('stat-fossapay-deposits').textContent = fmt(totalCollected);
-    document.getElementById('stat-fossapay-withdrawals').textContent = fmt(totalWithdrawnFirestore);
-
-    if (!Array.isArray(txList) || !txList.length) {
-      document.getElementById('stat-fossapay-count').textContent = '—';
+    if (!rows.length) {
       const tr = document.createElement('tr');
       tr.className = 'empty-row';
-      tr.innerHTML = '<td colspan="5">Transaction data unavailable — check Vercel logs for raw FossaPay response.</td>';
+      tr.innerHTML = '<td colspan="6">No matching transactions</td>';
       tbody.appendChild(tr);
       return;
     }
 
-    // isDebitTx is used only for table row colouring — it does NOT affect balance stats.
-    // Balance stats come from Firestore (above). We cast a wide net here to correctly
-    // colour any debit-like type FossaPay may send (inter-bank transfers, fees, etc.).
-    const isDebitTx = type => {
-      const t = String(type).toLowerCase();
-      return t.includes('debit') ||
-             t.includes('withdraw') ||
-             t.includes('transfer_out') ||
-             t.includes('outflow') ||
-             t.includes('outbound') ||
-             t === 'out';
-    };
-
-    // Order by date & time, newest first
-    const sorted = txList.slice().sort((a, b) =>
-      toTimestamp(b.date || b.createdAt || b.transactionDate) -
-      toTimestamp(a.date || a.createdAt || a.transactionDate)
-    );
-
-    document.getElementById('stat-fossapay-count').textContent = sorted.length;
-
-    sorted.forEach(tx => {
-      const type = tx.type || tx.transactionType || '—';
-      const amount = tx.amount ?? tx.value ?? null;
-      const isDebit = isDebitTx(type);
-      const ref = tx.reference || tx.transactionReference || tx.id || '—';
-      const desc = tx.narration || tx.description || tx.remark || '—';
-      const date = fmtDateTime(tx.date || tx.createdAt || tx.transactionDate);
-
+    rows.forEach(r => {
       const tr = document.createElement('tr');
       const tdDate = document.createElement('td');
       tdDate.className = 'td-muted';
-      tdDate.textContent = date;
+      tdDate.textContent = fmtDateTime(r.date);
       const tdType = document.createElement('td');
-      tdType.className = 'td-muted';
-      tdType.textContent = type;
+      tdType.innerHTML = `<span class="badge ${r.type}">${r.type}</span>`;
+      const tdName = document.createElement('td');
+      tdName.textContent = r.name;
       const tdAmount = document.createElement('td');
-      tdAmount.className = 'td-amount' + (isDebit ? ' debit' : '');
-      tdAmount.textContent = amount != null ? fmt(amount) : '—';
+      tdAmount.className = 'td-amount' + (r.type === 'withdrawal' ? ' debit' : '');
+      tdAmount.textContent = fmt(r.amount);
       const tdRef = document.createElement('td');
       tdRef.className = 'td-mono td-muted';
-      tdRef.textContent = ref;
-      const tdDesc = document.createElement('td');
-      tdDesc.className = 'td-muted';
-      tdDesc.textContent = desc;
+      tdRef.textContent = r.reference;
+      const tdDetails = document.createElement('td');
+      tdDetails.className = 'td-muted';
+      tdDetails.textContent = r.details || '—';
 
-      tr.append(tdDate, tdType, tdAmount, tdRef, tdDesc);
+      tr.append(tdDate, tdType, tdName, tdAmount, tdRef, tdDetails);
       tbody.appendChild(tr);
     });
   }
+
+  // ── FossaPay Transactions: deposit-only subset (all rows today, since
+  // FossaPay is the only connected provider) ─────────────────
+  function renderFossaPayDeposits(rows) {
+    const tbody = document.getElementById('fossapay-tbody');
+    tbody.innerHTML = '';
+
+    if (!rows.length) {
+      const tr = document.createElement('tr');
+      tr.className = 'empty-row';
+      tr.innerHTML = '<td colspan="6">No FossaPay transactions yet</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      const tdDate = document.createElement('td');
+      tdDate.className = 'td-muted';
+      tdDate.textContent = fmtDateTime(r.date);
+      const tdName = document.createElement('td');
+      tdName.textContent = r.name;
+      const tdMatric = document.createElement('td');
+      tdMatric.className = 'td-muted';
+      tdMatric.textContent = r.matric || '—';
+      const tdItems = document.createElement('td');
+      tdItems.className = 'td-muted';
+      tdItems.textContent = r.details || '—';
+      const tdAmount = document.createElement('td');
+      tdAmount.className = 'td-amount';
+      tdAmount.textContent = fmt(r.amount);
+      const tdRef = document.createElement('td');
+      tdRef.className = 'td-mono td-muted';
+      tdRef.textContent = r.reference;
+
+      tr.append(tdDate, tdName, tdMatric, tdItems, tdAmount, tdRef);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ── Filter control wiring ──────────────────────────────────
+  ['sp-search', 'sp-gender', 'sp-item', 'sp-date-from', 'sp-date-to'].forEach(id => {
+    document.getElementById(id).addEventListener('input', applyStudentPaymentsFilter);
+  });
+  document.getElementById('sp-clear').addEventListener('click', () => {
+    document.getElementById('sp-search').value = '';
+    document.getElementById('sp-gender').value = '';
+    document.getElementById('sp-item').value = '';
+    document.getElementById('sp-date-from').value = '';
+    document.getElementById('sp-date-to').value = '';
+    applyStudentPaymentsFilter();
+  });
+
+  ['th-search', 'th-type', 'th-date-from', 'th-date-to'].forEach(id => {
+    document.getElementById(id).addEventListener('input', applyHistoryFilter);
+  });
+  document.getElementById('th-clear').addEventListener('click', () => {
+    document.getElementById('th-search').value = '';
+    document.getElementById('th-type').value = '';
+    document.getElementById('th-date-from').value = '';
+    document.getElementById('th-date-to').value = '';
+    applyHistoryFilter();
+  });
 
   // ── Refresh button ────────────────────────────────────────
   document.getElementById('refresh-btn').addEventListener('click', () => {

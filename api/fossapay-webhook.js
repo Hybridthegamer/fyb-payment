@@ -144,10 +144,11 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  // Atomic batch write: processedEvents + payments/{uid} + pendingPayments/{accountNumber}
+  // Atomic batch write: processedEvents + payments/{uid} + pendingPayments/{accountNumber} + summary/fossapay
   const batch              = db.batch();
   const processedEventsRef = db.collection('processedEvents').doc(fossaTransactionId);
   const paymentRef         = db.collection('payments').doc(pendingDoc.uid);
+  const summaryRef         = db.collection('summary').doc('fossapay');
 
   const parsedAmount = parseFloat(receivedAmount);
   const txn = {
@@ -157,6 +158,7 @@ module.exports = async function handler(req, res) {
     subtotal: pendingDoc.subtotal  ?? parsedAmount,
     fee:      pendingDoc.fee       ?? 0,
     date:     new Date().toISOString(),
+    provider: 'fossapay',
   };
 
   const paymentUpdate = {
@@ -179,6 +181,11 @@ module.exports = async function handler(req, res) {
     processedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
   batch.set(paymentRef, paymentUpdate, { merge: true });
+  batch.set(summaryRef, {
+    totalDeposits: admin.firestore.FieldValue.increment(parsedAmount),
+    depositCount:  admin.firestore.FieldValue.increment(1),
+    updatedAt:     admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
   batch.update(pendingRef, {
     status:         'completed',
     completedAt:    admin.firestore.FieldValue.serverTimestamp(),
