@@ -630,7 +630,7 @@
     <h2 class="section-title">OVERVIEW</h2>
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">Account Balance</div>
+        <div class="stat-label">Account Balance (FossaPay)</div>
         <div class="stat-value" id="stat-account-balance">—</div>
       </div>
       <div class="stat-card">
@@ -662,9 +662,13 @@
         <div class="stat-label">FossaPay Balance</div>
         <div class="stat-value" id="stat-fossapay-balance">—</div>
       </div>
-      <div class="stat-card placeholder">
-        <div class="stat-label">Paystack Balance</div>
-        <div class="stat-value" id="stat-paystack-balance">Not connected</div>
+      <div class="stat-card">
+        <div class="stat-label">Paystack Deposits</div>
+        <div class="stat-value" id="stat-paystack-balance">—</div>
+      </div>
+      <div class="stat-card" id="stat-unmatched-card" style="display:none;">
+        <div class="stat-label">Unmatched Deposits</div>
+        <div class="stat-value" id="stat-unmatched">—</div>
       </div>
     </div>
 
@@ -956,6 +960,24 @@
   let allStudentPayments = [];
   let allHistoryRows = [];
 
+  // Transactions that were collected via Paystack before the FossaPay portal
+  // went live (legacy client-generated FYB-<timestamp> references). That money
+  // never touched the FossaPay wallet, so it must NOT count toward the
+  // FossaPay balance — it's shown separately under "Paystack Deposits".
+  const PAYSTACK_REFS = new Set([
+    'FYB-1778658974160',
+    'FYB-1778932855019',
+    'FYB-1779384466818',
+    'FYB-1780468178177',
+    'FYB-1780567455524',
+    'FYB-1780837203280',
+  ]);
+
+  function providerForTxn(t) {
+    if (PAYSTACK_REFS.has(t.ref)) return 'paystack';
+    return t.provider || 'fossapay';
+  }
+
   // Flattens each student's nested `transactions` array (deposits) and the
   // top-level `withdrawals` collection into one row shape for search/filter/sort.
   function flattenHistory(studentPayments, withdrawals) {
@@ -965,7 +987,7 @@
         const itemNames = Array.isArray(t.items) ? t.items.map(i => i.name || titleCase(i.id)) : [];
         rows.push({
           type: 'deposit',
-          provider: t.provider || 'fossapay',
+          provider: providerForTxn(t),
           date: t.date,
           amount: Number(t.amount) || 0,
           reference: t.ref || '—',
@@ -999,7 +1021,7 @@
 
   // ── Render dashboard ──────────────────────────────────────
   function renderDashboard(data) {
-    const { walletInfo, studentPayments, accountNumber, withdrawals, summary } = data;
+    const { walletInfo, studentPayments, accountNumber, withdrawals, unmatchedDeposits } = data;
 
     allStudentPayments = studentPayments || [];
     allHistoryRows = flattenHistory(allStudentPayments, withdrawals || []);
@@ -1009,26 +1031,46 @@
     document.getElementById('stat-balance').textContent =
       liveBalance != null ? fmt(liveBalance) : 'See logs';
 
-    // Ledger totals: trust summary/fossapay (maintained atomically by the webhook
-    // and admin-withdraw); fall back to a full-scan sum if the ledger doc hasn't
-    // been backfilled yet, so the dashboard is never stuck showing zero.
-    const legacyTotalDeposits = allStudentPayments.reduce((sum, p) => sum + (Number(p.totalPaid) || 0), 0);
-    const legacyTotalWithdrawals = (withdrawals || []).reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
-    const totalDeposits = summary?.totalDeposits || legacyTotalDeposits;
-    const totalWithdrawals = summary?.totalWithdrawals || legacyTotalWithdrawals;
-    const accountBalance = totalDeposits - totalWithdrawals;
+    // Balances are reconciled per provider from the actual transaction rows
+    // (all of which this endpoint already returns), NOT from the summary/fossapay
+    // ledger doc — the ledger was backfilled before the provider split existed,
+    // so it counts the legacy Paystack deposits and overstates the FossaPay
+    // balance. Only FossaPay money is withdrawable through this dashboard, so
+    // withdrawals net against the FossaPay side alone. Unmatched deposits are
+    // wallet credits the webhook confirmed but couldn't attribute to a student;
+    // they're real FossaPay money, so they count toward its balance.
+    const sum = rows => rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const depositRows       = allHistoryRows.filter(r => r.type === 'deposit');
+    const fossaDeposits     = sum(depositRows.filter(r => r.provider === 'fossapay'));
+    const paystackDeposits  = sum(depositRows.filter(r => r.provider === 'paystack'));
+    const totalWithdrawals  = sum(allHistoryRows.filter(r => r.type === 'withdrawal'));
+    const unmatchedRows     = unmatchedDeposits || [];
+    const unmatchedTotal    = unmatchedRows.reduce((s, u) => s + (Number(u.amount) || 0), 0);
 
-    document.getElementById('stat-account-balance').textContent = fmt(accountBalance);
+    const fossaBalance  = fossaDeposits + unmatchedTotal - totalWithdrawals;
+    const totalDeposits = fossaDeposits + paystackDeposits + unmatchedTotal;
+
+    document.getElementById('stat-account-balance').textContent = fmt(fossaBalance);
     document.getElementById('stat-total-deposits').textContent = fmt(totalDeposits);
     document.getElementById('stat-total-withdrawals').textContent = fmt(totalWithdrawals);
     document.getElementById('stat-payments-count').textContent = allStudentPayments.length;
     document.getElementById('stat-account-number').textContent = accountNumber || '—';
-    document.getElementById('stat-fossapay-balance').textContent = fmt(accountBalance);
+    document.getElementById('stat-fossapay-balance').textContent = fmt(fossaBalance);
+    document.getElementById('stat-paystack-balance').textContent = fmt(paystackDeposits);
+
+    const unmatchedCard = document.getElementById('stat-unmatched-card');
+    if (unmatchedRows.length > 0) {
+      unmatchedCard.style.display = '';
+      document.getElementById('stat-unmatched').textContent =
+        fmt(unmatchedTotal) + ' (' + unmatchedRows.length + ')';
+    } else {
+      unmatchedCard.style.display = 'none';
+    }
 
     populateItemFilter(allStudentPayments);
     applyStudentPaymentsFilter();
     applyHistoryFilter();
-    renderFossaPayDeposits(allHistoryRows.filter(r => r.type === 'deposit'));
+    renderFossaPayDeposits(depositRows.filter(r => r.provider === 'fossapay'));
   }
 
   // ── Student Payments: filtering + render ───────────────────
@@ -1180,7 +1222,11 @@
       tdDate.className = 'td-muted';
       tdDate.textContent = fmtDateTime(r.date);
       const tdType = document.createElement('td');
-      tdType.innerHTML = `<span class="badge ${r.type}">${r.type}</span>`;
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (r.type === 'withdrawal' ? 'withdrawal' : 'deposit');
+      badge.textContent =
+        r.type + (r.type === 'deposit' && r.provider !== 'fossapay' ? ' · ' + r.provider : '');
+      tdType.appendChild(badge);
       const tdName = document.createElement('td');
       tdName.textContent = r.name;
       const tdAmount = document.createElement('td');
@@ -1198,8 +1244,8 @@
     });
   }
 
-  // ── FossaPay Transactions: deposit-only subset (all rows today, since
-  // FossaPay is the only connected provider) ─────────────────
+  // ── FossaPay Transactions: FossaPay deposits only (legacy Paystack
+  // deposits are excluded — see PAYSTACK_REFS) ───────────────
   function renderFossaPayDeposits(rows) {
     const tbody = document.getElementById('fossapay-tbody');
     tbody.innerHTML = '';

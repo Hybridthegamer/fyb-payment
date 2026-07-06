@@ -97,9 +97,17 @@ Setup:
 
 Note on withdrawal endpoint: FossaPay's withdrawal API endpoint may differ from what is documented. If a withdrawal attempt returns an error, check Vercel logs for the raw FossaPay response (logged before parsing) and update the URL in api/admin-withdraw.js accordingly.
 
+### Balances by provider
+
+The dashboard reconciles balances from the actual transaction rows, split by provider:
+
+- **FossaPay balance** = FossaPay deposits + unmatched deposits − withdrawals. This is the withdrawable figure.
+- **Paystack deposits** — legacy payments collected via Paystack before the FossaPay portal went live (identified by the `PAYSTACK_REFS` list in `admin.html` and `scripts/backfill-summary.js`). That money never touched the FossaPay wallet, so it is excluded from the FossaPay balance and shown as its own stat.
+- **Unmatched deposits** — wallet credits the webhook verified but could not attribute to any pending payment. They are recorded in the `unmatchedDeposits` collection, counted into the FossaPay balance, and surfaced as a stat tile when present so they can be resolved manually.
+
 ### Ledger (summary/fossapay)
 
-The webhook and admin-withdraw endpoint atomically maintain a `summary/fossapay` Firestore document (`totalDeposits`, `totalWithdrawals`, `depositCount`, `withdrawalCount`) so the dashboard reads one cheap doc for balance stats instead of scanning the full `payments` and `withdrawals` collections on every load.
+The webhook and admin-withdraw endpoint atomically maintain a `summary/fossapay` Firestore document (`totalDeposits`, `totalWithdrawals`, `depositCount`, `withdrawalCount`, plus `paystackDeposits`/`paystackCount` and `unmatchedDeposits`/`unmatchedCount` after backfill). The dashboard computes its displayed balances from the full transaction rows it already loads; the ledger doc remains as a cheap cross-check.
 
 If you're deploying this after already having existing payments/withdrawals data, run the one-time backfill script once so historical totals aren't zeroed out:
 
@@ -127,10 +135,10 @@ Or deploy it with: firebase deploy --only firestore:indexes
 
 1. Student selects items → fills in details → clicks **Generate Payment Account**
 2. Frontend calls `POST /api/initiate-payment` with a verified Firebase ID token
-3. Backend verifies the token, reads the pre-stored organizer FossaPay account from config/fossapay in Firestore, saves a pendingPayments/{uid} record for the student, and returns the shared bank account details
+3. Backend verifies the token, **recomputes every item price from its own server-side catalog** (client-sent prices/amounts are never trusted — a mismatch is rejected), reads the pre-stored organizer FossaPay account from config/fossapay in Firestore, saves a pendingPayments/{uid} record for the student, and returns the shared bank account details
 4. Frontend shows the transfer details screen (displaying the organizer's account name, bank, and account number) and attaches a Firestore `onSnapshot` listener on pendingPayments/{uid}
 5. Student transfers the exact amount to the virtual account
 6. FossaPay fires `deposit.completed` → `POST /api/fossapay-webhook`
-7. Webhook verifies HMAC signature, queries pendingPayments for the oldest pending record matching the received amount exactly, checks idempotency, updates payments/{uid} and marks pendingPayments/{uid} as completed — atomically in a Firestore batch write
+7. Webhook verifies HMAC signature, then — inside a single Firestore transaction — checks idempotency, matches the oldest pending record with the received amount, updates payments/{uid}, marks pendingPayments/{uid} as completed, and increments the ledger. The transaction closes the race where two same-amount deposits could both claim one pending record. Deposits with no matching pending record are recorded in `unmatchedDeposits` so the money still shows up in the reconciled balance
 8. Firestore snapshot fires on the frontend → receipt screen shown automatically
 9. Webhook also logs the transaction to Google Sheets asynchronously

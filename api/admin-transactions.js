@@ -8,6 +8,10 @@
 
 const admin = require('firebase-admin');
 
+if (!process.env.FIREBASE_PRIVATE_KEY) {
+  throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -21,11 +25,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  // No CORS headers on purpose: the admin dashboard is served from the same
+  // origin, and a wildcard here would let any website replay a captured token.
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   // Verify Firebase ID token from Authorization header
@@ -113,6 +114,20 @@ module.exports = async function handler(req, res) {
     withdrawals = [];
   }
 
+  // Read unmatched deposits — money the webhook confirmed hit the FossaPay
+  // wallet but couldn't attribute to any pending payment. Counted into the
+  // dashboard's reconciled FossaPay balance so it never understates the wallet.
+  let unmatchedDeposits = [];
+  try {
+    const unmatchedSnap = await db.collection('unmatchedDeposits').get();
+    unmatchedSnap.forEach(doc => {
+      unmatchedDeposits.push({ id: doc.id, ...doc.data() });
+    });
+  } catch (err) {
+    console.error('[admin-transactions] Firestore unmatchedDeposits read failed:', err);
+    unmatchedDeposits = [];
+  }
+
   // Read the FossaPay ledger summary — maintained atomically by the webhook
   // (deposits) and admin-withdraw (withdrawals). Balance = totalDeposits - totalWithdrawals.
   let summary = { totalDeposits: 0, totalWithdrawals: 0, depositCount: 0, withdrawalCount: 0 };
@@ -133,6 +148,7 @@ module.exports = async function handler(req, res) {
     transactions,
     studentPayments,
     withdrawals,
+    unmatchedDeposits,
     summary,
   });
 };

@@ -7,7 +7,12 @@
 //   POST https://<your-vercel-domain>/api/setup-account
 //   Header: x-setup-secret: <value of SETUP_SECRET env var>
 
-const admin = require('firebase-admin');
+const admin  = require('firebase-admin');
+const crypto = require('crypto');
+
+if (!process.env.FIREBASE_PRIVATE_KEY) {
+  throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+}
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -26,7 +31,15 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!process.env.SETUP_SECRET || req.headers['x-setup-secret'] !== process.env.SETUP_SECRET) {
+  // Timing-safe comparison (via digests, so lengths always match) — a plain
+  // !== leaks the match length through response timing.
+  const provided = String(req.headers['x-setup-secret'] || '');
+  const expected = process.env.SETUP_SECRET || '';
+  const secretOk = expected.length > 0 && crypto.timingSafeEqual(
+    crypto.createHash('sha256').update(provided).digest(),
+    crypto.createHash('sha256').update(expected).digest(),
+  );
+  if (!secretOk) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
