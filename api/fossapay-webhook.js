@@ -8,6 +8,10 @@
 const crypto = require('crypto');
 const admin  = require('firebase-admin');
 
+if (!process.env.FIREBASE_PRIVATE_KEY) {
+  throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -40,9 +44,19 @@ module.exports = async function handler(req, res) {
   } catch {
     return res.status(400).json({ error: 'Invalid JSON body' });
   }
+  if (!payload || typeof payload !== 'object' || payload.data === undefined) {
+    return res.status(400).json({ error: 'Missing data property' });
+  }
+
+  // A missing secret must fail closed — an empty-string HMAC key would let
+  // anyone who knows the scheme forge valid signatures.
+  const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error('[Webhook] FOSSAPAY_WEBHOOK_SECRET is not set — rejecting all webhooks');
+    return res.status(500).json({ error: 'Webhook not configured' });
+  }
 
   // Verify HMAC-SHA256 signature — sign only the `data` property
-  const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
   const receivedSig = req.headers['x-fossapay-signature'] || '';
   const data = payload.data;
   const dataString = JSON.stringify(data);
@@ -65,7 +79,7 @@ module.exports = async function handler(req, res) {
 
   // FossaPay sends camelCase field names — eventType, eventId, not event, event_id
   const eventType = payload.eventType || payload.event;
-  const eventId   = payload.eventId   || payload.event_id;
+  const eventId   = payload.eventId   || payload.event_id || null;
 
   // Only process deposit.completed — acknowledge everything else immediately
   if (eventType !== 'deposit.completed') {
@@ -78,16 +92,15 @@ module.exports = async function handler(req, res) {
 
   // Without a transaction id we can't dedupe or key the processed-events doc;
   // acknowledge so FossaPay stops retrying, but take no action.
-  if (!fossaTransactionId) {
+  if (!fossaTransactionId || typeof fossaTransactionId !== 'string') {
     console.warn('[Webhook] Missing transactionId on deposit.completed. Event ID:', eventId);
     return res.status(200).json({ received: true });
   }
 
-  // Idempotency: check if this transaction was already processed
-  const existingPayment = await db.collection('processedEvents').doc(fossaTransactionId).get();
-  if (existingPayment.exists) {
-    console.log('[Webhook] Duplicate event, already processed:', fossaTransactionId);
-    return res.status(200).json({ received: true, duplicate: true });
+  const parsedAmount = parseFloat(receivedAmount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    console.warn(`[Webhook] Unparseable amount "${receivedAmount}" on ${fossaTransactionId}. Event ID: ${eventId}`);
+    return res.status(200).json({ received: true });
   }
 
   // FossaPay reports the NET-credited amount (e.g. "4500.00") — the student's
@@ -95,7 +108,7 @@ module.exports = async function handler(req, res) {
   // subtotal stored as expectedAmount in initiate-payment.js (the fee markup
   // covers FossaPay's cut). Round receivedAmount to the nearest integer before
   // querying so a "4500.00" string matches the integer expectedAmount.
-  const queryAmount = Math.round(receivedAmount);
+  const queryAmount = Math.round(parsedAmount);
 
   // With the shared-account model all students pay to the same organizer account.
   // Match the deposit to the correct pending payment by querying for the oldest
@@ -109,92 +122,141 @@ module.exports = async function handler(req, res) {
   // payments. Each candidate is an exact equality query, so it reuses the
   //   pendingPayments — status ASC, expectedAmount ASC, createdAt ASC
   // composite index and keeps oldest-first FIFO matching within a given amount.
-  let pendingRef, pendingDoc;
+  const candidates = [queryAmount, queryAmount - 1, queryAmount + 1];
+
+  const processedEventsRef = db.collection('processedEvents').doc(fossaTransactionId);
+  const summaryRef         = db.collection('summary').doc('fossapay');
+  const unmatchedRef       = db.collection('unmatchedDeposits').doc(fossaTransactionId);
+
+  // Everything — idempotency check, pending-payment match, and all writes —
+  // runs inside ONE Firestore transaction. This closes two races the old
+  // query-then-batch flow had:
+  //   1. Two deliveries of the same event both passing the processedEvents
+  //      exists-check before either wrote it (double credit).
+  //   2. Two DIFFERENT deposits of the same amount both matching the same
+  //      pending doc before either marked it completed (one student credited
+  //      twice, the other's money lost). The transaction retries on conflict
+  //      and re-runs the query, so the loser picks the next pending record.
+  let outcome;
   try {
-    const candidates = [queryAmount, queryAmount - 1, queryAmount + 1];
-    let matchDoc = null;
-    for (const candidate of candidates) {
-      const q = await db.collection('pendingPayments')
-        .where('status', '==', 'pending')
-        .where('expectedAmount', '==', candidate)
-        .orderBy('createdAt', 'asc')
-        .limit(1)
-        .get();
-      if (!q.empty) { matchDoc = q.docs[0]; break; }
-    }
+    outcome = await db.runTransaction(async (t) => {
+      const processedSnap = await t.get(processedEventsRef);
+      if (processedSnap.exists) return { status: 'duplicate' };
 
-    if (!matchDoc) {
-      console.warn(
-        `[Webhook] No pending payment found for amount ${receivedAmount} ` +
-        `(tried ${candidates.join(', ')}). Event ID: ${eventId}. ` +
-        `Acknowledging without action.`
-      );
-      return res.status(200).json({ received: true });
-    }
+      let matchSnap = null;
+      for (const candidate of candidates) {
+        const q = db.collection('pendingPayments')
+          .where('status', '==', 'pending')
+          .where('expectedAmount', '==', candidate)
+          .orderBy('createdAt', 'asc')
+          .limit(1);
+        const snap = await t.get(q);
+        if (!snap.empty) { matchSnap = snap.docs[0]; break; }
+      }
 
-    pendingRef = matchDoc.ref;
-    pendingDoc = matchDoc.data();
+      if (!matchSnap) {
+        // No pending record matches this deposit — but the money IS in the
+        // FossaPay wallet. Record it so the ledger (and the admin dashboard's
+        // reconciled balance) still reflects reality, and mark the event
+        // processed so a redelivery can't double-count it.
+        t.set(processedEventsRef, {
+          eventId,
+          matched:     false,
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        t.set(unmatchedRef, {
+          transactionId: fossaTransactionId,
+          eventId,
+          amount:        parsedAmount,
+          reference:     typeof data.reference === 'string' ? data.reference : null,
+          receivedAt:    admin.firestore.FieldValue.serverTimestamp(),
+        });
+        t.set(summaryRef, {
+          unmatchedDeposits: admin.firestore.FieldValue.increment(parsedAmount),
+          unmatchedCount:    admin.firestore.FieldValue.increment(1),
+          updatedAt:         admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        return { status: 'unmatched' };
+      }
+
+      const pendingDoc = matchSnap.data();
+
+      // Items were validated and priced server-side in initiate-payment, but
+      // guard against malformed legacy docs so one bad record can't wedge the
+      // webhook in a retry loop (arrayUnion throws on undefined/no args).
+      const paidItemIds = (Array.isArray(pendingDoc.items) ? pendingDoc.items : [])
+        .map(i => i && i.id)
+        .filter(id => typeof id === 'string' && id.length > 0);
+
+      const txn = {
+        ref:      fossaTransactionId,
+        items:    Array.isArray(pendingDoc.items) ? pendingDoc.items : [],
+        amount:   parsedAmount,
+        subtotal: pendingDoc.subtotal ?? parsedAmount,
+        fee:      pendingDoc.fee      ?? 0,
+        date:     new Date().toISOString(),
+        provider: 'fossapay',
+      };
+
+      const paymentUpdate = {
+        name:         pendingDoc.name   ?? null,
+        matric:       pendingDoc.matric ?? null,
+        email:        pendingDoc.email  ?? null,
+        phone:        pendingDoc.phone  ?? null,
+        gender:       pendingDoc.gender ?? null,
+        totalPaid:    admin.firestore.FieldValue.increment(parsedAmount),
+        transactions: admin.firestore.FieldValue.arrayUnion(txn),
+        paidAt:       admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (paidItemIds.length > 0) {
+        paymentUpdate.paidItems = admin.firestore.FieldValue.arrayUnion(...paidItemIds);
+      }
+      if (pendingDoc.jacketSize != null) {
+        paymentUpdate.jacketSize = pendingDoc.jacketSize;
+      }
+
+      t.set(processedEventsRef, {
+        eventId,
+        matched:     true,
+        uid:         pendingDoc.uid ?? matchSnap.id,
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      t.set(db.collection('payments').doc(pendingDoc.uid ?? matchSnap.id), paymentUpdate, { merge: true });
+      t.set(summaryRef, {
+        totalDeposits: admin.firestore.FieldValue.increment(parsedAmount),
+        depositCount:  admin.firestore.FieldValue.increment(1),
+        updatedAt:     admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      t.update(matchSnap.ref, {
+        status:         'completed',
+        completedAt:    admin.firestore.FieldValue.serverTimestamp(),
+        // The client receipt screen reads transactionRef off this doc — persist it
+        // here so the student sees their reference instead of a "—" placeholder.
+        transactionRef: fossaTransactionId,
+      });
+
+      return { status: 'matched', pendingDoc };
+    });
   } catch (err) {
-    console.error('[Webhook] Firestore query failed for event', eventId + ':', err);
+    console.error('[Webhook] Transaction failed for event', eventId + ':', err);
     return res.status(500).json({ error: 'Internal error' });
   }
 
-  // Idempotency guard — if already processed, do nothing
-  if (pendingDoc.status !== 'pending') {
-    return res.status(200).json({ received: true });
+  if (outcome.status === 'duplicate') {
+    console.log('[Webhook] Duplicate event, already processed:', fossaTransactionId);
+    return res.status(200).json({ received: true, duplicate: true });
   }
 
-  // Atomic batch write: processedEvents + payments/{uid} + pendingPayments/{accountNumber} + summary/fossapay
-  const batch              = db.batch();
-  const processedEventsRef = db.collection('processedEvents').doc(fossaTransactionId);
-  const paymentRef         = db.collection('payments').doc(pendingDoc.uid);
-  const summaryRef         = db.collection('summary').doc('fossapay');
-
-  const parsedAmount = parseFloat(receivedAmount);
-  const txn = {
-    ref:      fossaTransactionId,
-    items:    pendingDoc.items,
-    amount:   parsedAmount,
-    subtotal: pendingDoc.subtotal  ?? parsedAmount,
-    fee:      pendingDoc.fee       ?? 0,
-    date:     new Date().toISOString(),
-    provider: 'fossapay',
-  };
-
-  const paymentUpdate = {
-    name:         pendingDoc.name,
-    matric:       pendingDoc.matric,
-    email:        pendingDoc.email,
-    phone:        pendingDoc.phone,
-    gender:       pendingDoc.gender,
-    paidItems:    admin.firestore.FieldValue.arrayUnion(...pendingDoc.items.map(i => i.id)),
-    totalPaid:    admin.firestore.FieldValue.increment(parsedAmount),
-    transactions: admin.firestore.FieldValue.arrayUnion(txn),
-    paidAt:       admin.firestore.FieldValue.serverTimestamp(),
-  };
-  if (pendingDoc.jacketSize != null) {
-    paymentUpdate.jacketSize = pendingDoc.jacketSize;
+  if (outcome.status === 'unmatched') {
+    console.warn(
+      `[Webhook] No pending payment found for amount ${receivedAmount} ` +
+      `(tried ${candidates.join(', ')}). Event ID: ${eventId}. ` +
+      `Recorded in unmatchedDeposits/${fossaTransactionId}.`
+    );
+    return res.status(200).json({ received: true, unmatched: true });
   }
 
-  batch.set(processedEventsRef, {
-    eventId:     eventId,
-    processedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  batch.set(paymentRef, paymentUpdate, { merge: true });
-  batch.set(summaryRef, {
-    totalDeposits: admin.firestore.FieldValue.increment(parsedAmount),
-    depositCount:  admin.firestore.FieldValue.increment(1),
-    updatedAt:     admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
-  batch.update(pendingRef, {
-    status:         'completed',
-    completedAt:    admin.firestore.FieldValue.serverTimestamp(),
-    // The client receipt screen reads transactionRef off this doc — persist it
-    // here so the student sees their reference instead of a "—" placeholder.
-    transactionRef: fossaTransactionId,
-  });
-
-  await batch.commit();
+  const { pendingDoc } = outcome;
 
   try {
     const sheetsPayload = {
@@ -208,6 +270,11 @@ module.exports = async function handler(req, res) {
       subtotal: pendingDoc.subtotal,
       fee: pendingDoc.fee,
       totalPaid: pendingDoc.displayAmount,
+      // Net amount FossaPay actually credited to the wallet — what the
+      // Firestore ledger counts. totalPaid above is the gross the student
+      // transferred (subtotal + fee); keep both so the sheet reconciles
+      // against either figure.
+      creditedAmount: parsedAmount,
       transactionRef: fossaTransactionId,
       paidAt: new Date().toISOString()
     };

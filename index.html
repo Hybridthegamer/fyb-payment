@@ -1213,65 +1213,6 @@
     }
   }
 
-  // ── Firestore: save / update after payment ─────────────
-  async function saveToFirestore(reference) {
-    if (!state.user || !reference) return;
-    const selectedItems = ITEMS[state.gender].filter(i => state.selected.has(i.id));
-    // [FIX: guard] Refuse to write if there's nothing to record or total is zero.
-    if (selectedItems.length === 0) return;
-    const newPaidIds = selectedItems.map(i => i.id);
-    const amount     = getTotal();
-    if (amount <= 0) return;
-
-    const txn = {
-      ref:        reference,
-      items:      newPaidIds,
-      itemLabels: selectedItems.map(i => getItemDisplayLabel(i)),
-      amount,
-      date:       new Date().toISOString(),
-    };
-    const docRef = db.collection('payments').doc(state.user.uid);
-    try {
-      const snap = await docRef.get();
-      if (snap.exists) {
-        const updateData = {
-          name:         state.name,
-          matric:       state.matric,
-          phone:        state.phone,
-          email:        state.email,
-          gender:       state.gender,
-          paidItems:    firebase.firestore.FieldValue.arrayUnion(...newPaidIds),
-          totalPaid:    firebase.firestore.FieldValue.increment(amount),
-          transactions: firebase.firestore.FieldValue.arrayUnion(txn),
-        };
-        if (state.selected.has('jacket') && state.jacketSize) {
-          updateData.jacketSize = state.jacketSize;
-        }
-        await docRef.update(updateData);
-      } else {
-        await docRef.set({
-          name:         state.name,
-          matric:       state.matric,
-          phone:        state.phone,
-          email:        state.email,
-          gender:       state.gender,
-          paidItems:    newPaidIds,
-          totalPaid:    amount,
-          transactions: [txn],
-          jacketSize:   state.selected.has('jacket') ? (state.jacketSize || null) : null,
-        });
-      }
-    } catch (err) {
-      // [FIX: silent failure — LOW] Surface the error so the user knows to keep their receipt.
-      console.error('[Firestore] Save failed:', err);
-      alert(
-        'Your payment was processed by FossaPay, but we could not save your record to the database.\n\n' +
-        'Please screenshot this page and contact the FYB coordinator with your reference:\n\n' +
-        reference
-      );
-    }
-  }
-
   const ITEMS = {
     male: [
       { id: 'jacket',   name: 'Jacket',           note: 'Standard FYB jacket',       price: 12000 },
@@ -1727,6 +1668,10 @@
           items:      getSelectedItemsArray(),
           amount:     getTotal(),
           jacketSize: state.jacketSize,
+          // The server recomputes every price from its own catalog; it needs
+          // the variable-item options to do so (yards for senator, 3/6 yds for ankara).
+          senatorYards: state.selected.has('senator') ? state.senatorYards : null,
+          ankaraOption: state.selected.has('ankara')  ? state.ankaraOption  : null,
         }),
       });
       const data = await res.json();
@@ -1883,71 +1828,22 @@
       $('r-jacket-size-row').style.display = 'none';
     }
 
-    $('r-items').innerHTML = (data.items || [])
-      .map(i => `<div class="rc-row"><span class="lbl">${i.name}</span><span class="val">${fmt(i.price || 0)}</span></div>`)
-      .join('');
-
-    goTo('screen-receipt');
-  }
-
-  function showReceiptFromFirestore(paymentData, amount, reference, subtotal, fee) {
-    $('r-name').textContent   = paymentData.name   || state.name;
-    $('r-matric').textContent = paymentData.matric || state.matric;
-    $('r-phone').textContent  = paymentData.phone  || state.phone;
-    $('r-gender').textContent = (paymentData.gender || state.gender) === 'male' ? 'Male' : 'Female';
-    $('r-total').textContent = fmt(amount);
-
-    // Show fee breakdown on receipt if available
-    const rFeeRow = document.getElementById('r-fee-row');
-    const rSubtotalRow = document.getElementById('r-subtotal-row');
-    if (rFeeRow && rSubtotalRow && fee && subtotal) {
-      document.getElementById('r-subtotal-val').textContent = fmt(subtotal);
-      document.getElementById('r-fee-val').textContent      = '+ ' + fmt(fee);
-      rSubtotalRow.style.display = 'flex';
-      rFeeRow.style.display      = 'flex';
-    }
-
-    $('r-ref').textContent    = reference;
-
-    if (paymentData.jacketSize) {
-      $('r-jacket-size').textContent = paymentData.jacketSize;
-      $('r-jacket-size-row').style.display = 'flex';
-    } else {
-      $('r-jacket-size-row').style.display = 'none';
-    }
-
-    $('r-items').innerHTML = ITEMS[state.gender]
-      ? ITEMS[state.gender]
-          .filter(i => state.selected.has(i.id))
-          .map(i =>
-            `<div class="rc-row"><span class="lbl">${getItemDisplayLabel(i)}</span>` +
-            `<span class="val">${fmt(getItemEffectivePrice(i))}</span></div>`
-          ).join('')
-      : '';
-
-    goTo('screen-receipt');
-  }
-
-  // ── Screen 4 : receipt ────────────────────────────────
-  function showReceipt(reference) {
-    $('r-name').textContent   = state.name;
-    $('r-matric').textContent = state.matric;
-    $('r-phone').textContent  = state.phone;
-    $('r-gender').textContent = state.gender === 'male' ? 'Male' : 'Female';
-    $('r-total').textContent  = fmt(getTotal());
-    $('r-ref').textContent    = reference;
-
-    if (state.selected.has('jacket') && state.jacketSize) {
-      $('r-jacket-size').textContent = state.jacketSize;
-      $('r-jacket-size-row').style.display = 'flex';
-    } else {
-      $('r-jacket-size-row').style.display = 'none';
-    }
-
-    $('r-items').innerHTML = ITEMS[state.gender]
-      .filter(i => state.selected.has(i.id))
-      .map(i => `<div class="rc-row"><span class="lbl">${getItemDisplayLabel(i)}</span><span class="val">${fmt(getItemEffectivePrice(i))}</span></div>`)
-      .join('');
+    // Build the item rows with DOM methods — item names come from Firestore
+    // data, so never feed them through innerHTML.
+    const rItems = $('r-items');
+    rItems.innerHTML = '';
+    (data.items || []).forEach(i => {
+      const row = document.createElement('div');
+      row.className = 'rc-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = i.name || i.id || '';
+      const val = document.createElement('span');
+      val.className = 'val';
+      val.textContent = fmt(i.price || 0);
+      row.append(lbl, val);
+      rItems.appendChild(row);
+    });
 
     goTo('screen-receipt');
   }

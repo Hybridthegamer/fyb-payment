@@ -89,15 +89,15 @@ async function run() {
     });
     console.log('[Test] Pending document created.');
 
-    // Step 2: compute HMAC signature for both strategies; send whichever matches
-    const webhookSecret  = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
-    const bodyString     = JSON.stringify(payload);
-    const sigOfRaw       = crypto.createHmac('sha256', webhookSecret).update(bodyString).digest('hex');
-    const parsedAgain    = JSON.parse(bodyString);
-    const sigOfStringified = crypto.createHmac('sha256', webhookSecret).update(JSON.stringify(parsedAgain)).digest('hex');
-    // In practice both will be equal since bodyString is already canonical JSON,
-    // but we send the raw-body hash which is what we'd get from a real POST.
-    const sigToSend = sigOfRaw;
+    // Step 2: compute HMAC signature the way FossaPay does — over the
+    // JSON-serialized `data` property only, NOT the full body. This matches
+    // the verification in api/fossapay-webhook.js.
+    const webhookSecret = process.env.FOSSAPAY_WEBHOOK_SECRET || '';
+    const bodyString    = JSON.stringify(payload);
+    const sigToSend     = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(JSON.stringify(payload.data))
+      .digest('hex');
 
     console.log('[Test] POSTing to', WEBHOOK_URL);
     console.log('[Test] Signature (first 20):', sigToSend.substring(0, 20) + '...');

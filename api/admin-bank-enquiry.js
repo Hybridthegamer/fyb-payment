@@ -5,6 +5,10 @@
 
 const admin = require('firebase-admin');
 
+if (!process.env.FIREBASE_PRIVATE_KEY) {
+  throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -16,11 +20,8 @@ if (!admin.apps.length) {
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  // No CORS headers on purpose: the admin dashboard is served from the same
+  // origin, and a wildcard here would let any website replay a captured token.
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const authHeader = req.headers.authorization || '';
