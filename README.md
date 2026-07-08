@@ -120,14 +120,33 @@ It's safe to re-run — it recomputes the totals from scratch each time rather t
 
 ---
 
-## Firestore Index
+## Firestore Indexes
 
-The webhook requires a composite index on pendingPayments. Create it in the Firebase Console:
-- Collection: pendingPayments
-- Fields: status (Ascending) → expectedAmount (Ascending) → createdAt (Ascending)
-- Query scope: Collection
+The webhook requires two composite indexes on pendingPayments (one per match key):
+- status (Ascending) → expectedAmount (Ascending) → createdAt (Ascending)
+- status (Ascending) → expectedGross (Ascending) → createdAt (Ascending)
 
-Or deploy it with: firebase deploy --only firestore:indexes
+Deploy them with: `firebase deploy --only firestore:indexes` (they are defined in
+`firestore.indexes.json`). If the expectedGross index is missing the webhook logs an
+error and returns 500 for deposits it can't match, so FossaPay redelivers the event
+after the index is deployed instead of the deposit being lost.
+
+## Testing the payment layer
+
+`test-payment-layer.js` runs the real initiate-payment and webhook handlers against the
+Firebase emulators — no live credentials, no FossaPay account, and no `vercel dev` needed.
+It covers matching (net, gross, ±1 rounding, legacy records), the stale-record hijack
+regression, idempotent redelivery, unmatched-deposit recording, signature rejection, and
+initiate-payment validation:
+
+```
+npx firebase-tools emulators:start --only firestore,auth   # firestore on 8686, auth on 9099
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8686 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+  node test-payment-layer.js
+```
+
+(`test-webhook.js` is the older smoke test that posts to a running `vercel dev` against
+your real Firebase project.)
 
 ---
 
@@ -139,6 +158,6 @@ Or deploy it with: firebase deploy --only firestore:indexes
 4. Frontend shows the transfer details screen (displaying the organizer's account name, bank, and account number) and attaches a Firestore `onSnapshot` listener on pendingPayments/{uid}
 5. Student transfers the exact amount to the virtual account
 6. FossaPay fires `deposit.completed` → `POST /api/fossapay-webhook`
-7. Webhook verifies HMAC signature, then — inside a single Firestore transaction — checks idempotency, matches the oldest pending record with the received amount, updates payments/{uid}, marks pendingPayments/{uid} as completed, and increments the ledger. The transaction closes the race where two same-amount deposits could both claim one pending record. Deposits with no matching pending record are recorded in `unmatchedDeposits` so the money still shows up in the reconciled balance
+7. Webhook verifies HMAC signature, then — inside a single Firestore transaction — checks idempotency, matches the deposit to a pending record, updates payments/{uid}, marks pendingPayments/{uid} as completed, and increments the ledger. Matching rules: only records created within the last 24 hours are considered (override with the `PENDING_MATCH_WINDOW_HOURS` env var), newest first, against both stored match keys — `expectedAmount` (the net FossaPay credits, == subtotal) and `expectedGross` (the gross the student transfers, == subtotal + fee) — exact first, then ±1 for top-tier rounding. The freshness window is what stops an old, never-completed pending record from swallowing a new student's deposit (which previously logged the wrong person and left the actual payer stuck on "pending"). The transaction closes the race where two same-amount deposits could both claim one pending record. Deposits with no matching pending record are recorded in `unmatchedDeposits` so the money still shows up in the reconciled balance
 8. Firestore snapshot fires on the frontend → receipt screen shown automatically
 9. Webhook also logs the transaction to Google Sheets asynchronously
