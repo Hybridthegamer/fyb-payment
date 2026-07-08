@@ -103,26 +103,38 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  // FossaPay reports the NET-credited amount (e.g. "4500.00") — the student's
-  // transfer minus FossaPay's settlement fee. By design that net equals the
-  // subtotal stored as expectedAmount in initiate-payment.js (the fee markup
-  // covers FossaPay's cut). Round receivedAmount to the nearest integer before
-  // querying so a "4500.00" string matches the integer expectedAmount.
+  // Round receivedAmount to the nearest integer before querying so a "4500.00"
+  // string matches the integer match keys stored by initiate-payment.
   const queryAmount = Math.round(parsedAmount);
 
-  // With the shared-account model all students pay to the same organizer account.
-  // Match the deposit to the correct pending payment by querying for the oldest
-  // pending record whose expectedAmount equals the received (net-credited) amount.
-  //
-  // expectedAmount is stored as the SUBTOTAL (see initiate-payment.js): FossaPay
-  // credits the net after its settlement fee, and the fee markup is sized so net
-  // == subtotal. For flat-fee tiers net == subtotal exactly; for the top 1.2%
-  // tier rounding can leave net = subtotal + 1. So try the exact amount first,
-  // then ±1, to absorb that rounding without widening the match for unrelated
-  // payments. Each candidate is an exact equality query, so it reuses the
-  //   pendingPayments — status ASC, expectedAmount ASC, createdAt ASC
-  // composite index and keeps oldest-first FIFO matching within a given amount.
-  const candidates = [queryAmount, queryAmount - 1, queryAmount + 1];
+  // With the shared-account model all students pay to the same organizer account,
+  // so the deposit amount is the ONLY signal linking a deposit to a student.
+  // initiate-payment stores two match keys per pending record:
+  //   expectedAmount — the subtotal (what FossaPay credits NET of its fee; the
+  //                    fee markup is sized so net == subtotal, ±1 on the 1.2% tier)
+  //   expectedGross  — subtotal + fee (what the student actually transfers, in
+  //                    case FossaPay reports the gross figure instead)
+  // Production logs have been read both ways at different times (see the
+  // expectedAmount flip-flop commits), so match against BOTH keys — exact first,
+  // then ±1 to absorb top-tier rounding. Whichever figure FossaPay reports, the
+  // payer's own record matches.
+  const matchKeys = [];
+  for (const delta of [0, -1, 1]) {
+    matchKeys.push({ field: 'expectedAmount', value: queryAmount + delta });
+    matchKeys.push({ field: 'expectedGross',  value: queryAmount + delta });
+  }
+
+  // Only match records created recently. Without a time bound, any record that
+  // never got matched (abandoned checkout, or an amount-reporting mismatch)
+  // sits in the queue as 'pending' forever, and the old oldest-first matching
+  // handed each new deposit to the OLDEST stale record of that amount — the
+  // previous person got logged and the actual payer stalled, shifting the whole
+  // queue by one on every payment. The window keeps stale records from ever
+  // hijacking a new deposit; they simply age out.
+  const MATCH_WINDOW_HOURS = parseFloat(process.env.PENDING_MATCH_WINDOW_HOURS) || 24;
+  const windowStart = admin.firestore.Timestamp.fromMillis(
+    Date.now() - MATCH_WINDOW_HOURS * 60 * 60 * 1000
+  );
 
   const processedEventsRef = db.collection('processedEvents').doc(fossaTransactionId);
   const summaryRef         = db.collection('summary').doc('fossapay');
@@ -143,15 +155,42 @@ module.exports = async function handler(req, res) {
       const processedSnap = await t.get(processedEventsRef);
       if (processedSnap.exists) return { status: 'duplicate' };
 
+      // Newest-first within the window: the payer almost always initiated
+      // minutes before their transfer lands, so the most recent same-amount
+      // record is the most likely owner — and an abandoned record from hours
+      // ago can never shadow the student who is actually paying right now.
       let matchSnap = null;
-      for (const candidate of candidates) {
+      let skippedKeys = 0;
+      for (const { field, value } of matchKeys) {
         const q = db.collection('pendingPayments')
           .where('status', '==', 'pending')
-          .where('expectedAmount', '==', candidate)
-          .orderBy('createdAt', 'asc')
+          .where(field, '==', value)
+          .where('createdAt', '>=', windowStart)
+          .orderBy('createdAt', 'desc')
           .limit(1);
-        const snap = await t.get(q);
+        let snap;
+        try {
+          snap = await t.get(q);
+        } catch (err) {
+          // A missing composite index (FAILED_PRECONDITION) on one key must not
+          // wedge every payment — log loudly and keep trying the other keys,
+          // which use the long-deployed expectedAmount index.
+          if (err.code === 9 || /FAILED_PRECONDITION|requires an index/i.test(String(err.message))) {
+            console.error(`[Webhook] Missing Firestore index for ${field} match — ` +
+              'run `firebase deploy --only firestore:indexes`. Skipping this key.');
+            skippedKeys++;
+            continue;
+          }
+          throw err;
+        }
         if (!snap.empty) { matchSnap = snap.docs[0]; break; }
+      }
+
+      if (!matchSnap && skippedKeys > 0) {
+        // Some match keys couldn't even be queried. Don't record this deposit
+        // as unmatched (that would mark the event processed forever) — fail so
+        // FossaPay redelivers after the index is deployed.
+        throw new Error('Match queries skipped due to missing index — retry after deploying indexes');
       }
 
       if (!matchSnap) {
@@ -250,7 +289,8 @@ module.exports = async function handler(req, res) {
   if (outcome.status === 'unmatched') {
     console.warn(
       `[Webhook] No pending payment found for amount ${receivedAmount} ` +
-      `(tried ${candidates.join(', ')}). Event ID: ${eventId}. ` +
+      `(tried expectedAmount/expectedGross == ${queryAmount}±1 within ` +
+      `${MATCH_WINDOW_HOURS}h). Event ID: ${eventId}. ` +
       `Recorded in unmatchedDeposits/${fossaTransactionId}.`
     );
     return res.status(200).json({ received: true, unmatched: true });

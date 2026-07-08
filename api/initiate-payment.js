@@ -222,16 +222,15 @@ module.exports = async function handler(req, res) {
       subtotal,
       fee,
       displayAmount:  totalWithFee,
-      // FossaPay credits the NET amount after deducting its own settlement fee,
-      // and the webhook reports that net-credited figure as data.amount. The
-      // calculateFee markup is sized so that net == subtotal: the student
-      // transfers totalWithFee (subtotal + fee), FossaPay takes ~fee, and the
-      // organizer wallet is credited the subtotal. Live logs confirm this — the
-      // ₦4500 Sash (totalWithFee 4560) produces data.amount = "4500.00".
-      // So the webhook must match on the subtotal, NOT totalWithFee. (For the
-      // top 1.2% tier the net can round to subtotal + 1; the webhook absorbs
-      // that with a ±1 tolerance.)
+      // The webhook matches the deposit back to this record by amount, and
+      // FossaPay's reported data.amount has been observed both as the NET
+      // credited figure (== subtotal, since the calculateFee markup covers
+      // FossaPay's cut) and as the GROSS the student transferred (subtotal +
+      // fee). Store BOTH keys so the webhook matches whichever one arrives:
+      //   expectedAmount — net / subtotal (±1 on the top 1.2% tier)
+      //   expectedGross  — gross / totalWithFee
       expectedAmount: subtotal,
+      expectedGross:  totalWithFee,
       accountNumber,
       bankName,
       bankCode,
