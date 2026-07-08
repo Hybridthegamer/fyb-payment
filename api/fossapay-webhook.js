@@ -176,8 +176,11 @@ module.exports = async function handler(req, res) {
           // wedge every payment — log loudly and keep trying the other keys,
           // which use the long-deployed expectedAmount index.
           if (err.code === 9 || /FAILED_PRECONDITION|requires an index/i.test(String(err.message))) {
+            // Firestore's message includes a console URL that creates the
+            // exact missing index in one click — surface it in the logs.
             console.error(`[Webhook] Missing Firestore index for ${field} match — ` +
-              'run `firebase deploy --only firestore:indexes`. Skipping this key.');
+              'run `firebase deploy --only firestore:indexes` or open the link ' +
+              `in this error. Skipping this key. Details: ${err.message}`);
             skippedKeys++;
             continue;
           }
