@@ -122,9 +122,11 @@ It's safe to re-run — it recomputes the totals from scratch each time rather t
 
 ## Firestore Indexes
 
-The webhook requires two composite indexes on pendingPayments (one per match key):
-- status (Ascending) → expectedAmount (Ascending) → createdAt (Ascending)
-- status (Ascending) → expectedGross (Ascending) → createdAt (Ascending)
+The webhook requires two composite indexes on pendingPayments (one per match key).
+The createdAt direction MUST be Descending — the matcher orders newest-first, and
+Firestore composite indexes are direction-sensitive:
+- status (Ascending) → expectedAmount (Ascending) → createdAt (Descending)
+- status (Ascending) → expectedGross (Ascending) → createdAt (Descending)
 
 Deploy them with: `firebase deploy --only firestore:indexes` (they are defined in
 `firestore.indexes.json`). If the expectedGross index is missing the webhook logs an
