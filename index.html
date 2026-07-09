@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FYB Week — Outfit Payment Portal</title>
+  <title>FYB Week — Payments Closed</title>
+  <meta name="description" content="The NACOS RSU FYB Week outfit payment portal is now closed. Have a wonderful FYB Week — enjoy your outfits!" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Warm up the Firebase SDK + auth/firestore endpoints early so the first
-       sign-in and data read don't pay the TLS/DNS cost serially. Big win on
-       mobile networks and under load. -->
-  <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
-  <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin />
-  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
-  <link rel="preconnect" href="https://fyb-payment.firebaseapp.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+  <!--
+    ══════════════════════════════════════════════════════════════════
+    PAYMENTS CLOSED — closure landing page.
+    The original payment portal is preserved untouched in
+    index-payment-archived.html (excluded from deployment via
+    .vercelignore). To reopen payments, restore that file to index.html.
+    ══════════════════════════════════════════════════════════════════
+  -->
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,6 +26,7 @@
       --green-light: #2DB54F;
       --green-glow:  rgba(30, 124, 58, 0.18);
       --green-border:rgba(30, 124, 58, 0.45);
+      --gold:        #E8C15A;
       --black:       #0B0B0B;
       --surface:     #141414;
       --surface-2:   #1C1C1C;
@@ -47,19 +48,61 @@
       overflow-x: hidden;
     }
 
-    /* ─── SCREENS ─────────────────────────── */
-    .screen { display: none; min-height: 100vh; }
-    .screen.active {
-      display: flex;
-      flex-direction: column;
-      animation: fadeUp .35s cubic-bezier(.22,1,.36,1) both;
+    /* ─── AMBIENT BACKGROUND ─────────────────── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(10px);
+      z-index: 0;
     }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(14px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .orb-1 {
+      top: -180px; left: 50%;
+      width: 720px; height: 720px;
+      transform: translateX(-50%);
+      background: radial-gradient(circle, rgba(30,124,58,.16) 0%, transparent 70%);
+      animation: orbDrift 14s ease-in-out infinite alternate;
+    }
+    .orb-2 {
+      bottom: -260px; left: -200px;
+      width: 640px; height: 640px;
+      background: radial-gradient(circle, rgba(45,181,79,.09) 0%, transparent 70%);
+      animation: orbDrift 18s ease-in-out infinite alternate-reverse;
+    }
+    .orb-3 {
+      top: 30%; right: -240px;
+      width: 560px; height: 560px;
+      background: radial-gradient(circle, rgba(232,193,90,.05) 0%, transparent 70%);
+      animation: orbDrift 22s ease-in-out infinite alternate;
+    }
+    @keyframes orbDrift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(40px, 28px) scale(1.08); }
+    }
+    .orb-1 { animation-name: orbDrift1; }
+    @keyframes orbDrift1 {
+      from { transform: translateX(-50%) translateY(0) scale(1); }
+      to   { transform: translateX(-46%) translateY(24px) scale(1.06); }
     }
 
-    /* ─── SHARED HEADER ───────────────────── */
+    #confetti {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ─── LAYOUT ─────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 2;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
     .topbar {
       display: flex;
       align-items: center;
@@ -67,6 +110,7 @@
       padding: 20px 28px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
+      animation: fadeUp .6s cubic-bezier(.22,1,.36,1) both;
     }
     .logo {
       font-family: var(--font-d);
@@ -83,92 +127,19 @@
       letter-spacing: .5px;
       margin-left: 8px;
     }
-    .back-btn {
-      background: none;
-      border: 1px solid var(--border-2);
-      color: var(--muted);
-      padding: 7px 14px;
-      border-radius: 7px;
-      font-family: var(--font-b);
-      font-size: 12px;
-      cursor: pointer;
-      transition: border-color .2s, color .2s;
-    }
-    .back-btn:hover { border-color: var(--green); color: var(--text); }
 
-    /* ─── SCREEN 0 : SIGN IN ─────────────────── */
-    #screen-signin {
+    /* ─── HERO ───────────────────────────────── */
+    .hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
-      padding: 40px 20px;
-      position: relative;
-      overflow: hidden;
-    }
-    #screen-signin::before {
-      content: '';
-      position: absolute;
-      top: -120px; left: 50%;
-      transform: translateX(-50%);
-      width: 600px; height: 600px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(30,124,58,.12) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    .signin-inner {
-      width: 100%;
-      max-width: 440px;
       text-align: center;
-      position: relative;
-    }
-    .btn-google {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      background: var(--surface-2);
-      border: 1px solid var(--border-2);
-      color: var(--text);
-      padding: 14px 32px;
-      border-radius: 10px;
-      font-family: var(--font-b);
-      font-size: 15px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: border-color .2s, background .2s, transform .15s, box-shadow .2s;
-      margin-top: 8px;
-      width: 100%;
-      max-width: 300px;
-    }
-    .btn-google:hover {
-      border-color: var(--green);
-      background: var(--green-glow);
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(30,124,58,.18);
-    }
-    .btn-google:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
-    .signin-footer { margin-top: 28px; font-size: 12px; color: var(--dim); }
-
-    /* ─── SCREEN 1 : GENDER ───────────────── */
-    #screen-gender {
-      justify-content: center;
-      align-items: center;
-      padding: 40px 20px;
-      position: relative;
-      overflow: hidden;
-    }
-    #screen-gender::before {
-      content: '';
-      position: absolute;
-      top: -120px; left: 50%;
-      transform: translateX(-50%);
-      width: 600px; height: 600px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(30,124,58,.12) 0%, transparent 70%);
-      pointer-events: none;
+      padding: 72px 20px 56px;
     }
 
-    .g-inner { width: 100%; max-width: 740px; text-align: center; position: relative; }
-    .g-pill {
+    .pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -180,34 +151,162 @@
       letter-spacing: 2.5px;
       text-transform: uppercase;
       color: var(--green-light);
-      margin-bottom: 18px;
+      margin-bottom: 30px;
+      animation: fadeUp .6s cubic-bezier(.22,1,.36,1) .15s both;
     }
-    .g-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-light); animation: pulse 1.8s infinite; }
+    .pill-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green-light);
+      animation: pulse 1.8s infinite;
+    }
     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
 
-    .g-title {
-      font-family: var(--font-d);
-      font-size: clamp(44px, 9vw, 80px);
-      letter-spacing: 4px;
-      line-height: .95;
-      margin-bottom: 10px;
+    /* animated check ring */
+    .check-wrap {
+      position: relative;
+      width: 108px; height: 108px;
+      margin-bottom: 34px;
+      animation: fadeUp .6s cubic-bezier(.22,1,.36,1) .25s both;
     }
-    .g-sub { color: var(--muted); font-size: 14px; font-weight: 300; margin-bottom: 52px; line-height: 1.6; }
+    .check-wrap::after {
+      content: '';
+      position: absolute;
+      inset: -14px;
+      border-radius: 50%;
+      border: 1px solid var(--green-border);
+      opacity: 0;
+      animation: ringPing 2.6s cubic-bezier(.22,1,.36,1) 1.4s infinite;
+    }
+    @keyframes ringPing {
+      0%   { transform: scale(.82); opacity: .55; }
+      70%  { transform: scale(1.18); opacity: 0; }
+      100% { transform: scale(1.18); opacity: 0; }
+    }
+    .check-svg { width: 100%; height: 100%; }
+    .check-circle {
+      fill: rgba(30,124,58,.10);
+      stroke: var(--green-light);
+      stroke-width: 2.5;
+      stroke-dasharray: 302;
+      stroke-dashoffset: 302;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      animation: drawCircle 1s cubic-bezier(.6,0,.3,1) .5s forwards;
+    }
+    @keyframes drawCircle { to { stroke-dashoffset: 0; } }
+    .check-mark {
+      fill: none;
+      stroke: var(--green-light);
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 60;
+      stroke-dashoffset: 60;
+      animation: drawCheck .5s cubic-bezier(.6,0,.3,1) 1.3s forwards;
+    }
+    @keyframes drawCheck { to { stroke-dashoffset: 0; } }
 
-    .g-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .title {
+      font-family: var(--font-d);
+      font-size: clamp(56px, 11vw, 112px);
+      letter-spacing: 5px;
+      line-height: .94;
+      margin-bottom: 20px;
+    }
+    .title .line { display: block; overflow: hidden; }
+    .title .line span {
+      display: inline-block;
+      transform: translateY(110%);
+      animation: riseIn .8s cubic-bezier(.22,1,.36,1) forwards;
+    }
+    .title .line:nth-child(1) span { animation-delay: .45s; }
+    .title .line:nth-child(2) span { animation-delay: .60s; }
+    @keyframes riseIn { to { transform: translateY(0); } }
 
-    .g-card {
+    .title .closed {
+      background: linear-gradient(100deg, var(--green-light) 20%, #7BE39A 40%, var(--green-light) 60%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: var(--green-light);
+      animation: riseIn .8s cubic-bezier(.22,1,.36,1) .6s forwards,
+                 shimmer 4s linear 1.8s infinite;
+    }
+    @keyframes shimmer {
+      from { background-position: 200% center; }
+      to   { background-position: 0% center; }
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: clamp(15px, 2.4vw, 18px);
+      font-weight: 300;
+      line-height: 1.7;
+      max-width: 520px;
+      animation: fadeUp .7s cubic-bezier(.22,1,.36,1) .9s both;
+    }
+    .subtitle strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .subtitle .accent { color: var(--green-light); font-weight: 500; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── STORY / ACHIEVEMENTS ───────────────── */
+    .story {
+      padding: 0 20px 84px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: fadeUp .7s cubic-bezier(.22,1,.36,1) 1.15s both;
+    }
+    .story-divider {
+      width: 54px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--green), transparent);
+      margin-bottom: 34px;
+    }
+    .story-kicker {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 14px;
+    }
+    .story-text {
+      max-width: 640px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 300;
+      line-height: 1.8;
+      margin-bottom: 44px;
+    }
+    .story-text strong { color: var(--text); font-weight: 500; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      width: 100%;
+      max-width: 740px;
+    }
+    .stat {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 52px 28px 40px;
-      cursor: pointer;
-      transition: transform .3s cubic-bezier(.22,1,.36,1),
-                  border-color .3s, box-shadow .3s;
+      border-radius: 16px;
+      padding: 28px 18px 24px;
+      text-align: center;
       position: relative;
       overflow: hidden;
+      transition: transform .3s cubic-bezier(.22,1,.36,1), border-color .3s, box-shadow .3s;
     }
-    .g-card::after {
+    .stat::after {
       content: '';
       position: absolute;
       inset: 0;
@@ -216,1661 +315,217 @@
       transition: opacity .3s;
       border-radius: inherit;
     }
-    .g-card:hover::after { opacity: 1; }
-    .g-card:hover {
-      border-color: var(--green);
-      transform: translateY(-6px);
-      box-shadow: 0 28px 56px rgba(30,124,58,.22);
-    }
-    .g-card-icon {
-      font-size: 52px;
-      line-height: 1;
-      display: block;
-      margin-bottom: 14px;
-      position: relative; z-index: 1;
-    }
-    .g-card-name {
+    .stat:hover { border-color: var(--green); transform: translateY(-5px); box-shadow: 0 22px 44px rgba(30,124,58,.18); }
+    .stat:hover::after { opacity: 1; }
+    .stat-icon { font-size: 26px; line-height: 1; display: block; margin-bottom: 12px; position: relative; z-index: 1; }
+    .stat-name {
       font-family: var(--font-d);
-      font-size: 38px;
-      letter-spacing: 2.5px;
+      font-size: 24px;
+      letter-spacing: 1.8px;
       display: block;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       position: relative; z-index: 1;
     }
-    .g-card-meta {
+    .stat-desc {
       font-size: 12px;
-      color: var(--green-light);
-      font-weight: 500;
+      color: var(--muted);
+      font-weight: 300;
+      line-height: 1.6;
       position: relative; z-index: 1;
     }
-    .g-footer {
-      margin-top: 36px;
+
+    /* ─── FOOTER ─────────────────────────────── */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 22px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
       font-size: 12px;
       color: var(--dim);
     }
+    .footer .heart { color: var(--green-light); }
 
-    /* ─── SCREEN 2 : ITEMS ────────────────── */
-    .items-body { flex: 1; max-width: 620px; width: 100%; margin: 0 auto; padding: 32px 24px 12px; }
-    .items-head h2 { font-family: var(--font-d); font-size: 34px; letter-spacing: 2px; }
-    .items-head p { color: var(--muted); font-size: 13px; margin-top: 5px; }
-
-    .item-list { margin-top: 24px; display: flex; flex-direction: column; gap: 9px; }
-
-    .item-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 13px;
-      padding: 16px 18px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      cursor: pointer;
-      transition: border-color .2s, background .2s, transform .15s;
-      user-select: none;
-    }
-    .item-card:hover { border-color: var(--border-2); }
-    .item-card:active { transform: scale(.99); }
-    .item-card.selected {
-      border-color: var(--green);
-      background: var(--green-glow);
+    @media (max-width: 640px) {
+      .stats { grid-template-columns: 1fr; max-width: 380px; }
+      .hero { padding-top: 56px; }
+      .footer { justify-content: center; text-align: center; }
     }
 
-    /* ─── PAID ITEM STATE ────────────────────── */
-    .item-card.paid {
-      opacity: 0.55;
-      cursor: not-allowed;
-      pointer-events: none;
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+      .title .line span { transform: none; }
+      .check-circle, .check-mark { stroke-dashoffset: 0; }
+      #confetti { display: none; }
     }
-    .paid-badge {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--green-light);
-      background: var(--green-glow);
-      border: 1px solid var(--green-border);
-      border-radius: 999px;
-      padding: 3px 10px;
-      letter-spacing: .5px;
-      flex-shrink: 0;
-      white-space: nowrap;
-    }
-
-    .chk {
-      width: 22px; height: 22px; flex-shrink: 0;
-      border: 2px solid var(--border-2);
-      border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .2s, border-color .2s;
-    }
-    .item-card.selected .chk { background: var(--green); border-color: var(--green); }
-    .chk svg { display: none; }
-    .item-card.selected .chk svg { display: block; }
-
-    .item-info { flex: 1; min-width: 0; }
-    .item-name { font-size: 14px; font-weight: 500; }
-    .item-note { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .item-price {
-      font-family: var(--font-d);
-      font-size: 20px;
-      letter-spacing: 1px;
-      color: var(--muted);
-      transition: color .2s;
-      flex-shrink: 0;
-    }
-    .item-card.selected .item-price { color: var(--green-light); }
-
-    /* sticky footer */
-    .items-foot {
-      position: sticky; bottom: 0;
-      background: linear-gradient(transparent, var(--black) 24px);
-      padding: 28px 24px 20px;
-      border-top: 1px solid var(--border);
-      margin-top: auto;
-    }
-    .items-foot-row {
-      max-width: 620px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    }
-    .tot-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); }
-    .tot-val { font-family: var(--font-d); font-size: 34px; letter-spacing: 1px; line-height: 1.1; margin-top: 2px; }
-
-    .btn-prime {
-      background: var(--green);
-      color: #fff;
-      border: none;
-      padding: 13px 28px;
-      border-radius: 10px;
-      font-family: var(--font-b);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background .2s, transform .15s, box-shadow .2s;
-    }
-    .btn-prime:hover { background: var(--green-light); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(30,124,58,.3); }
-    .btn-prime:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
-
-    /* ─── SCREEN 3 : CHECKOUT ─────────────── */
-    .co-body { flex: 1; max-width: 560px; width: 100%; margin: 0 auto; padding: 32px 24px 40px; }
-    .co-title { font-family: var(--font-d); font-size: 34px; letter-spacing: 2px; margin-bottom: 4px; }
-    .co-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
-
-    .summary-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 13px;
-      padding: 18px 20px;
-      margin-bottom: 28px;
-    }
-    .summary-hd { font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); margin-bottom: 12px; }
-    .s-row {
-      display: flex; justify-content: space-between;
-      font-size: 13px; padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .s-row:last-child { border: none; }
-    .s-row.s-total {
-      margin-top: 8px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border-2);
-      font-weight: 600;
-      font-size: 15px;
-    }
-    .s-row.s-total span:last-child { color: var(--green-light); }
-
-    .fg { margin-bottom: 14px; }
-    .fl {
-      display: block;
-      font-size: 11px; font-weight: 500;
-      text-transform: uppercase; letter-spacing: 1.5px;
-      color: var(--muted); margin-bottom: 7px;
-    }
-    .fi {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 13px 15px;
-      color: var(--text);
-      font-family: var(--font-b); font-size: 14px;
-      outline: none;
-      transition: border-color .2s;
-    }
-    .fi:focus { border-color: var(--green); }
-    .fi::placeholder { color: var(--dim); }
-
-    .btn-pay {
-      width: 100%;
-      background: var(--green);
-      color: #fff; border: none;
-      padding: 16px;
-      border-radius: 10px;
-      font-family: var(--font-b); font-size: 15px; font-weight: 600;
-      cursor: pointer; margin-top: 24px;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      transition: background .2s, transform .15s, box-shadow .2s;
-    }
-    .btn-pay:hover { background: var(--green-light); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(30,124,58,.32); }
-    .btn-pay:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
-
-    /* ─── SCREEN 4 : PENDING ─────────────── */
-    .pd-body { flex: 1; max-width: 560px; width: 100%; margin: 0 auto; padding: 32px 24px 40px; }
-    .pd-title { font-family: var(--font-d); font-size: 34px; letter-spacing: 2px; margin-bottom: 24px; }
-
-    .pd-status {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 28px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    .pd-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--green-light);
-      animation: pulse 1.8s infinite;
-      flex-shrink: 0;
-    }
-
-    .pd-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 20px;
-    }
-    .pd-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .pd-row:last-child { border: none; padding-bottom: 0; }
-    .pd-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); flex-shrink: 0; }
-    .pd-val { font-size: 14px; font-weight: 500; text-align: right; }
-    .pd-account-wrap {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-    .pd-account-num {
-      font-family: 'Courier New', monospace;
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 2px;
-    }
-    .pd-amount {
-      font-family: var(--font-d);
-      font-size: 32px;
-      letter-spacing: 1px;
-      color: var(--green-light);
-    }
-    .copy-btn {
-      background: var(--surface-2);
-      border: 1px solid var(--border-2);
-      color: var(--text);
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-family: var(--font-b);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      white-space: nowrap;
-      flex-shrink: 0;
-      transition: border-color .2s, background .2s;
-    }
-    .copy-btn:hover { border-color: var(--green); background: var(--green-glow); }
-
-    .pd-warning {
-      border: 1px solid #b45309;
-      background: rgba(180, 83, 9, 0.08);
-      border-radius: 10px;
-      padding: 14px 16px;
-      font-size: 13px;
-      color: #fbbf24;
-      line-height: 1.5;
-      margin-top: 12px;
-    }
-
-    .pd-note {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.6;
-      margin-bottom: 24px;
-    }
-
-    .btn-back-sec {
-      width: 100%;
-      background: none;
-      border: 1px solid var(--border-2);
-      color: var(--muted);
-      padding: 13px;
-      border-radius: 10px;
-      font-family: var(--font-b);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: border-color .2s, color .2s;
-    }
-    .btn-back-sec:hover { border-color: var(--green); color: var(--text); }
-
-    /* ─── SCREEN 5 : RECEIPT ──────────────── */
-    #screen-receipt { justify-content: flex-start; align-items: stretch; padding-bottom: 40px; }
-    .rc-wrap { width: 100%; max-width: 520px; margin: 0 auto; padding: 40px 20px 0; }
-
-    .rc-icon {
-      width: 60px; height: 60px;
-      background: var(--green-glow);
-      border: 1px solid var(--green-border);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 18px;
-    }
-    .rc-title { font-family: var(--font-d); font-size: 42px; letter-spacing: 2.5px; margin-bottom: 6px; }
-    .rc-sub { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 28px; }
-
-    .rc-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      overflow: hidden;
-    }
-    .rc-sec {
-      padding: 18px 22px;
-      border-bottom: 1px solid var(--border);
-    }
-    .rc-sec:last-child { border: none; }
-    .rc-sec-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); margin-bottom: 12px; }
-    .rc-row {
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 13px; padding: 4px 0;
-    }
-    .rc-row .lbl { color: var(--muted); }
-    .rc-row .val { font-weight: 500; }
-    .rc-big { font-family: var(--font-d); font-size: 30px; letter-spacing: 1px; color: var(--green-light); }
-    .rc-ref { font-size: 11px; font-family: 'Courier New', monospace; color: var(--muted); word-break: break-all; }
-
-    .rc-actions { margin-top: 20px; display: flex; gap: 10px; }
-    .btn-sec {
-      flex: 1; background: var(--surface); border: 1px solid var(--border-2);
-      color: var(--text); padding: 13px;
-      border-radius: 10px; font-family: var(--font-b); font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: border-color .2s;
-      text-align: center;
-    }
-    .btn-sec:hover { border-color: var(--green); }
-
-    /* ─── USER CHIP (topbar) ─────────────────── */
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .user-chip {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .user-avatar {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      background: var(--green);
-      color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 600;
-      flex-shrink: 0;
-    }
-    .user-email {
-      font-size: 11px;
-      color: var(--muted);
-      max-width: 130px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .signout-btn {
-      background: none;
-      border: 1px solid var(--border-2);
-      color: var(--muted);
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-family: var(--font-b);
-      font-size: 11px;
-      cursor: pointer;
-      transition: border-color .2s, color .2s;
-    }
-    .signout-btn:hover { border-color: var(--green); color: var(--text); }
-
-    /* ─── MOBILE ──────────────────────────── */
-    @media (max-width: 500px) {
-      .g-cards { grid-template-columns: 1fr; }
-      .g-card  { padding: 36px 22px 30px; }
-      .topbar  { padding: 15px 16px; }
-      .items-body, .co-body { padding: 24px 16px 12px; }
-      .items-foot { padding: 20px 16px 16px; }
-      .user-email { display: none; }
-    }
-
-    @media print {
-      .rc-actions, .topbar { display: none !important; }
-      body { background: white; color: black; }
-      .rc-card { border: 1px solid #ccc; }
-      .rc-row .lbl, .rc-sec-lbl { color: #555; }
-    }
-
-    /* ─── DYNAMIC ITEM CONTROLS ──────────────── */
-    .item-card--dynamic {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0;
-    }
-    .item-card-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .item-ctrl {
-      overflow: hidden;
-      max-height: 0;
-      opacity: 0;
-      transition: max-height .3s ease, opacity .25s ease, padding-top .3s ease;
-      padding-top: 0;
-      pointer-events: none;
-    }
-    .item-card.selected .item-ctrl {
-      max-height: 90px;
-      opacity: 1;
-      padding-top: 12px;
-      pointer-events: auto;
-    }
-
-    /* Senator slider */
-    .senator-lbl {
-      display: block;
-      font-size: 12px;
-      color: var(--green-light);
-      font-weight: 500;
-      margin-bottom: 8px;
-    }
-    input[type="range"].senator-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 4px;
-      border-radius: 999px;
-      outline: none;
-      cursor: pointer;
-    }
-    input[type="range"].senator-slider:focus-visible {
-      outline: 2px solid #2DB54F;
-      outline-offset: 6px;
-      border-radius: 2px;
-    }
-    input[type="range"].senator-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 20px; height: 20px;
-      border-radius: 50%;
-      background: #2DB54F;
-      cursor: pointer;
-      box-shadow: 0 0 0 3px rgba(45,181,79,.15);
-      transition: box-shadow .15s;
-    }
-    input[type="range"].senator-slider:hover::-webkit-slider-thumb,
-    input[type="range"].senator-slider:focus-visible::-webkit-slider-thumb {
-      box-shadow: 0 0 0 6px rgba(45,181,79,.3);
-    }
-    input[type="range"].senator-slider::-moz-range-thumb {
-      border: none;
-      width: 20px; height: 20px;
-      border-radius: 50%;
-      background: #2DB54F;
-      cursor: pointer;
-      box-shadow: 0 0 0 3px rgba(45,181,79,.15);
-    }
-    input[type="range"].senator-slider::-moz-range-track {
-      height: 4px;
-      background: #2E2E2E;
-      border-radius: 999px;
-    }
-    input[type="range"].senator-slider::-moz-range-progress {
-      height: 4px;
-      background: #2DB54F;
-      border-radius: 999px;
-    }
-
-    /* Ankara toggle */
-    .ankara-ctrl {
-      display: flex;
-      gap: 8px;
-    }
-    .ankara-opt {
-      flex: 1;
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(30,124,58,.45);
-      background: var(--surface-2);
-      color: var(--text);
-      font-family: var(--font-b);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background .18s, border-color .18s, color .18s;
-      text-align: center;
-    }
-    .ankara-opt.active {
-      background: #2DB54F;
-      border-color: #2DB54F;
-      color: #fff;
-    }
-    .ankara-opt:not(.active):hover { border-color: #2DB54F; }
-    .ankara-opt:focus-visible {
-      outline: 2px solid #2DB54F;
-      outline-offset: 2px;
-    }
-
-    /* ─── JACKET SIZE FIELD ──────────────────────── */
-    .size-guide-link {
-      display: inline-block;
-      font-size: 11px;
-      color: #2DB54F;
-      text-decoration: none;
-      margin-bottom: 8px;
-      transition: opacity .2s;
-    }
-    .size-guide-link:hover { opacity: .75; }
-
-    .size-guide-wrap {
-      margin-bottom: 8px;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-
-    .size-guide-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-      background: var(--surface);
-    }
-    .size-guide-table th,
-    .size-guide-table td {
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-    }
-    .size-guide-table thead th {
-      color: var(--muted);
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-size: 10px;
-    }
-    .size-guide-table tbody tr:last-child td { border-bottom: none; }
-    .size-guide-table tbody td { color: var(--text); }
-
-    .field-error {
-      display: block;
-      font-size: 11px;
-      color: #e05252;
-      margin-top: 6px;
-    }
-
-    select.fi {
-      cursor: pointer;
-      -webkit-appearance: none;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A7A7A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 14px center;
-      padding-right: 36px;
-    }
-    select.fi:disabled { opacity: .6; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-<!-- ══ SCREEN 0 : SIGN IN ════════════════════════════════════════ -->
-<div class="screen active" id="screen-signin">
-  <div class="signin-inner">
-    <div class="g-pill"><span class="g-dot"></span> NACOS RSU · FYB Week 2026</div>
-    <h1 class="g-title">NACOS FYB WEEK<br>PORTAL</h1>
-    <p class="g-sub" style="margin-bottom:36px;">Sign in with your Google account<br>to access the outfit payment portal.</p>
-    <button class="btn-google" id="btn-google-signin" onclick="signInWithGoogle()">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18" height="18">
-        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-      </svg>
-      Continue with Google
-    </button>
-    <p class="signin-footer">Payments are processed securely via FossaPay</p>
-  </div>
-</div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
 
-<!-- ══ SCREEN 1 : GENDER ══════════════════════════════════════════ -->
-<div class="screen" id="screen-gender">
-  <div class="g-inner">
-    <div class="g-pill"><span class="g-dot"></span> NACOS RSU · FYB Week 2026</div>
-    <h1 class="g-title">OUTFIT<br>PAYMENT</h1>
-    <p class="g-sub">Select all items you want to pay for.<br>Nothing is compulsory — pick what applies to you (you can pay gradually i.e one item per session).</p>
-    <div class="g-cards">
-      <div class="g-card" onclick="selectGender('male')">
-        <span class="g-card-icon">♂</span>
-        <span class="g-card-name">MALE</span>
-        <span class="g-card-meta">5 items · max ₦48,000</span>
+  <div class="page">
+
+    <header class="topbar">
+      <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Outfit Payment Portal</span></div>
+    </header>
+
+    <main class="hero">
+      <div class="pill"><span class="pill-dot"></span> Collection Complete · FYB Week 2026</div>
+
+      <div class="check-wrap" aria-hidden="true">
+        <svg class="check-svg" viewBox="0 0 108 108">
+          <circle class="check-circle" cx="54" cy="54" r="48"></circle>
+          <path class="check-mark" d="M34 55 L48 69 L75 41"></path>
+        </svg>
       </div>
-      <div class="g-card" onclick="selectGender('female')">
-        <span class="g-card-icon">♀</span>
-        <span class="g-card-name">FEMALE</span>
-        <span class="g-card-meta">5 items · max ₦37,500</span>
-      </div>
-    </div>
-    <p class="g-footer">Payments are processed securely via FossaPay</p>
-  </div>
-</div>
 
-<!-- ══ SCREEN 2 : ITEMS ═══════════════════════════════════════════ -->
-<div class="screen" id="screen-items">
-  <header class="topbar">
-    <div class="logo">FYB WEEK <span class="logo-sub">Select Items</span></div>
-    <div class="topbar-right">
-      <div class="user-chip" id="user-chip-items"></div>
-      <button class="back-btn" onclick="goTo('screen-gender')">← Back</button>
-    </div>
-  </header>
-  <div class="items-body">
-    <div class="items-head">
-      <h2 id="items-gender-label">OUTFIT</h2>
-      <p>Tap an item to select or deselect it. Only selected items will be charged.</p>
-    </div>
-    <div class="item-list" id="item-list"></div>
-  </div>
-  <div class="items-foot">
-    <div class="items-foot-row">
-      <div>
-        <div class="tot-label">Total Selected</div>
-        <div class="tot-val" id="items-total">₦0</div>
-        <div id="items-fee-note" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;"></div>
-      </div>
-      <button class="btn-prime" id="btn-proceed" onclick="proceedToCheckout()" disabled>
-        Checkout →
-      </button>
-    </div>
-  </div>
-</div>
+      <h1 class="title">
+        <span class="line"><span>PAYMENTS</span></span>
+        <span class="line"><span class="closed">CLOSED</span></span>
+      </h1>
 
-<!-- ══ SCREEN 3 : CHECKOUT ════════════════════════════════════════ -->
-<div class="screen" id="screen-checkout">
-  <header class="topbar">
-    <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Checkout</span></div>
-    <div class="topbar-right">
-      <div class="user-chip" id="user-chip-checkout"></div>
-      <button class="back-btn" onclick="goTo('screen-items')">← Back</button>
-    </div>
-  </header>
-  <div class="co-body">
-    <h2 class="co-title">YOUR DETAILS</h2>
-    <p class="co-sub">Fill in your info — this is what gets recorded alongside your payment.</p>
+      <p class="subtitle">
+        The outfit payment collection has wrapped up successfully.<br />
+        <strong>Have a wonderful FYB Week.</strong> <span class="accent">Enjoy your outfits!</span> 🎉
+      </p>
+    </main>
 
-    <div class="summary-box">
-      <div class="summary-hd">Order Summary</div>
-      <div id="order-rows"></div>
-    </div>
+    <section class="story">
+      <div class="story-divider"></div>
+      <div class="story-kicker">What this portal did</div>
+      <p class="story-text">
+        This platform was built so every <strong>NACOS RSU final-year student</strong> could pay for
+        their FYB Week outfits — jackets, senator &amp; ankara fabrics, sashes, customizations and
+        packaging — from anywhere, in seconds. Each payment went through a
+        <strong>secure bank transfer</strong>, was verified automatically the moment it landed, and
+        produced an <strong>instant digital receipt</strong>. No queues, no cash, no missing records.
+      </p>
 
-    <div class="fg">
-      <label class="fl">Full Name</label>
-      <input class="fi" type="text" id="f-name" placeholder="e.g. Chidi Okeke" autocomplete="name" />
-    </div>
-    <div class="fg">
-      <label class="fl">Matric Number</label>
-      <input class="fi" type="text" id="f-matric" placeholder="e.g. DE.2022/7999" autocomplete="off" />
-    </div>
-    <div class="fg">
-      <label class="fl">Email Address</label>
-      <input class="fi" type="email" id="f-email" placeholder="e.g. chidi@gmail.com" autocomplete="email" />
-    </div>
-    <div class="fg">
-      <label class="fl">WhatsApp Number</label>
-      <input class="fi" type="tel" id="f-phone" placeholder="e.g. 08012345678" autocomplete="tel" />
-    </div>
-
-    <button class="btn-pay" id="btn-pay" onclick="initiatePayment()">
-      Generate Payment Account →
-    </button>
-  </div>
-  <p class="g-footer">Please ensure you complete payment upon account generation to avoid "customer already exists" error upon return</p>
-</div>
-
-<!-- ══ SCREEN 4 : PENDING ═════════════════════════════════════════ -->
-<div class="screen" id="screen-pending">
-  <header class="topbar">
-    <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Payment</span></div>
-    <div class="user-chip" id="user-chip-pending"></div>
-  </header>
-  <div class="pd-body">
-    <h2 class="pd-title">TRANSFER DETAILS</h2>
-    <div class="pd-status">
-      <span class="pd-dot"></span>
-      Awaiting your payment...
-    </div>
-
-    <div class="pd-card">
-      <div class="pd-row">
-        <span class="pd-lbl">Account Name</span>
-        <span class="pd-val" id="pd-account-name">—</span>
-      </div>
-      <div class="pd-row">
-        <span class="pd-lbl">Bank Name</span>
-        <span class="pd-val" id="pd-bank-name">—</span>
-      </div>
-      <div class="pd-row">
-        <span class="pd-lbl">Account Number</span>
-        <div class="pd-account-wrap">
-          <span class="pd-account-num" id="pd-account-number">—</span>
-          <button class="copy-btn" id="copy-btn" onclick="copyAccountNumber()">Copy</button>
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-icon">🔒</span>
+          <span class="stat-name">Secure Payments</span>
+          <span class="stat-desc">Every transfer verified &amp; confirmed automatically — no manual follow-ups.</span>
+        </div>
+        <div class="stat">
+          <span class="stat-icon">⚡</span>
+          <span class="stat-name">Instant Receipts</span>
+          <span class="stat-desc">Real-time confirmation the moment your payment landed, with a digital receipt.</span>
+        </div>
+        <div class="stat">
+          <span class="stat-icon">🎓</span>
+          <span class="stat-name">One Class, One Look</span>
+          <span class="stat-desc">Gents &amp; ladies collections funded — the FYB class of 2026 steps out in style.</span>
         </div>
       </div>
-      <div class="pd-row">
-        <span class="pd-lbl">Amount</span>
-        <div>
-          <span class="pd-amount" id="pd-amount">—</span>
-          <div id="pd-fee-breakdown" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;text-align:right;"></div>
-        </div>
-      </div>
-    </div>
+    </section>
 
-    <div class="pd-warning">
-      Transfer the <strong>EXACT</strong> amount shown. Do not send more or less.
-    </div>
+    <footer class="footer">
+      <span>NACOS RSU · FYB Week 2026</span>
+      <span>Made with <span class="heart">💚</span> for the graduating class</span>
+    </footer>
 
-    <p class="pd-note" style="margin-top:20px;">
-      This page updates automatically when your payment is confirmed. Keep it open.
-    </p>
-
-    <button id="manualCheckBtn" onclick="handleManualPaymentCheck()"
-      style="margin-top:24px; width:100%; padding:14px; background:var(--green); color:#000;
-      border:none; border-radius:8px; font-family:'Bebas Neue',sans-serif;
-      font-size:1.1rem; letter-spacing:1px; cursor:pointer;">
-      I'VE MADE THE PAYMENT
-    </button>
-    <p id="manualCheckMsg" style="text-align:center; font-size:0.8rem;
-      color:var(--text-muted,#888); margin-top:8px; min-height:20px;"></p>
-
-    <button class="btn-back-sec" onclick="goBackFromPending()">← Go Back</button>
   </div>
-</div>
 
-<!-- ══ SCREEN 5 : RECEIPT ════════════════════════════════════════ -->
-<div class="screen" id="screen-receipt">
-  <header class="topbar">
-    <div class="logo">NACOS RSU FYB WEEK 2026<span class="logo-sub">Receipt</span></div>
-    <div class="user-chip" id="user-chip-receipt"></div>
-  </header>
-  <div class="rc-wrap">
-    <div class="rc-icon">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--green-light)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
-    </div>
-    <h2 class="rc-title">PAYMENT<br>CONFIRMED!</h2>
-    <p class="rc-sub">Your outfit payment has been recorded.<br>Screenshot or print this page for reference.</p>
+  <script>
+    // ─── Celebration confetti ─────────────────────────────────────
+    // Opening burst from the check ring, then a gentle continuous
+    // drift. Brand palette only. Skipped under prefers-reduced-motion.
+    (function () {
+      var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) return;
 
-    <div class="rc-card">
-      <div class="rc-sec">
-        <div class="rc-sec-lbl">Personal Info</div>
-        <div class="rc-row"><span class="lbl">Full Name</span><span class="val" id="r-name">—</span></div>
-        <div class="rc-row"><span class="lbl">Matric No.</span><span class="val" id="r-matric">—</span></div>
-        <div class="rc-row"><span class="lbl">WhatsApp</span><span class="val" id="r-phone">—</span></div>
-        <div class="rc-row"><span class="lbl">Gender</span><span class="val" id="r-gender">—</span></div>
-        <div class="rc-row" id="r-jacket-size-row" style="display:none"><span class="lbl">Jacket Size</span><span class="val" id="r-jacket-size">—</span></div>
-      </div>
-      <div class="rc-sec">
-        <div class="rc-sec-lbl">Items Paid For</div>
-        <div id="r-items"></div>
-      </div>
-      <div class="rc-sec">
-        <div class="rc-row" id="r-subtotal-row" style="display:none;">
-          <span class="lbl">Subtotal</span>
-          <span class="val" id="r-subtotal-val">—</span>
-        </div>
-        <div class="rc-row" id="r-fee-row" style="display:none;">
-          <span class="lbl" style="font-size:12px;">Processing Fee</span>
-          <span class="val" style="color:var(--muted);font-size:12px;" id="r-fee-val">—</span>
-        </div>
-        <div class="rc-row"><span class="lbl">Amount Paid</span><span class="rc-big" id="r-total">₦0</span></div>
-        <div class="rc-row" style="margin-top:10px;align-items:flex-start;">
-          <span class="lbl" style="flex-shrink:0;margin-right:12px;">Reference</span>
-          <span class="rc-ref" id="r-ref">—</span>
-        </div>
-      </div>
-    </div>
+      var canvas = document.getElementById('confetti');
+      var ctx = canvas.getContext('2d');
+      var W, H, dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    <div class="rc-actions">
-      <button class="btn-sec" onclick="window.print()">🖨&nbsp; Print</button>
-      <button class="btn-sec" onclick="startOver()">← New Payment</button>
-    </div>
-  </div>
-</div>
-
-<script>
-  // ══════════════════════════════════════════════════════
-  //  FIREBASE CONFIG
-  // ══════════════════════════════════════════════════════
-  const FIREBASE_API_KEY     = 'AIzaSyBXInhdzhY8QQ6G7dAYfvtEOdzza8mwVCs';
-  const FIREBASE_AUTH_DOMAIN = 'fyb-payment.firebaseapp.com';
-  const FIREBASE_PROJECT_ID  = 'fyb-payment';
-  const FIREBASE_APP_ID      = '1:614631046833:web:9f0f1b7e17f10030c12c90';
-  // ══════════════════════════════════════════════════════
-
-
-  // ── Firebase init ──────────────────────────────────────
-  firebase.initializeApp({
-    apiKey:    FIREBASE_API_KEY,
-    authDomain: FIREBASE_AUTH_DOMAIN,
-    projectId:  FIREBASE_PROJECT_ID,
-    appId:      FIREBASE_APP_ID,
-  });
-  const auth = firebase.auth();
-  const db   = firebase.firestore();
-
-  // Keep the session across reloads/redirects. LOCAL is the web default, but we
-  // set it explicitly so the redirect-based sign-in flow (below) reliably
-  // restores the user when the browser navigates back from Google.
-  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
-    console.warn('[Auth] Could not set LOCAL persistence:', err);
-  });
-
-  // Friendly, actionable messages for the common Firebase auth error codes.
-  // Returns null when there is nothing useful to show the user (e.g. they
-  // cancelled, or a popup was blocked and we are about to retry via redirect).
-  function authErrorMessage(code) {
-    switch (code) {
-      case 'auth/popup-closed-by-user':
-      case 'auth/cancelled-popup-request':
-      case 'auth/user-cancelled':
-        return null; // user backed out — not an error worth alerting on
-      case 'auth/network-request-failed':
-        return 'Network problem. Check your internet connection and try again.';
-      case 'auth/unauthorized-domain':
-        return 'Sign-in is not enabled for this address yet. Please contact the admin.';
-      case 'auth/too-many-requests':
-        return 'Too many attempts. Please wait a moment, then try again.';
-      case 'auth/web-storage-unsupported':
-        return 'Your browser is blocking sign-in storage. Disable private/incognito mode or try another browser.';
-      default:
-        return 'Sign-in failed. Please try again.';
-    }
-  }
-
-  // After a redirect-based sign-in, Google sends the user back to this page.
-  // The successful case is handled by onAuthStateChanged; here we only surface
-  // any error that happened during the redirect so it isn't swallowed silently.
-  auth.getRedirectResult().catch(err => {
-    console.error('[Auth] getRedirectResult:', err);
-    const msg = authErrorMessage(err.code);
-    if (msg) alert(msg);
-  });
-
-  // ── Auth state observer ────────────────────────────────
-  let _firstAuthCheck = true;
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      state.user = user;
-      updateUserChips(user);
-      const onSignIn = document.getElementById('screen-signin').classList.contains('active');
-      if (_firstAuthCheck || onSignIn) {
-        db.collection('pendingPayments').doc(user.uid).get().then(doc => {
-          if (doc.exists && doc.data().status === 'completed') {
-            showReceiptScreen(doc.data());
-          } else {
-            goTo('screen-gender');
-          }
-        }).catch(err => {
-          console.error('[Auth] Paid check error:', err);
-          goTo('screen-gender');
-        });
+      function resize() {
+        W = canvas.clientWidth = window.innerWidth;
+        H = canvas.clientHeight = window.innerHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
-    } else {
-      state.user = null;
-      goTo('screen-signin');
-    }
-    _firstAuthCheck = false;
-  });
+      resize();
+      window.addEventListener('resize', resize);
 
-  // Why popup-first, even on mobile:
-  // This app is served from a different domain than its Firebase authDomain
-  // (app on *.vercel.app, authDomain on fyb-payment.firebaseapp.com). On browsers
-  // that partition third-party storage — Safari/iOS and modern Chrome — the
-  // signInWithRedirect flow cannot read its pending redirect state back out of
-  // the firebaseapp.com storage after Google sends the user back. The result:
-  // getRedirectResult() resolves null, onAuthStateChanged never sees the user,
-  // and the student lands back on the sign-in screen having "authorised" but not
-  // signed in. That was the recurring complaint. signInWithPopup round-trips the
-  // credential via postMessage to the opener and is immune to that partitioning,
-  // so it is the reliable path on modern mobile browsers (Firebase's own guidance
-  // for cross-domain setups). We therefore only force the full-page redirect for
-  // genuine in-app / embedded webviews (WhatsApp, Instagram, Facebook, etc.) that
-  // hard-block popups — there redirect is the only option available anyway.
-  function prefersRedirectSignIn() {
-    const ua = navigator.userAgent || '';
-    const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|WhatsApp|Snapchat|MicroMessenger|GSA\/|; wv\)|WebView/i.test(ua);
-    return inAppBrowser;
-  }
+      var COLORS = ['#2DB54F', '#1E7C3A', '#7BE39A', '#E8C15A', '#F4F4F4'];
+      var pieces = [];
 
-  function redirectSignIn(provider, btn) {
-    auth.signInWithRedirect(provider).catch(err => {
-      console.error('[Auth] redirect:', err);
-      alert(authErrorMessage(err.code) || 'Sign-in failed. Please try again.');
-      if (btn) btn.disabled = false;
-    });
-  }
-
-  function signInWithGoogle() {
-    const btn = document.getElementById('btn-google-signin');
-    btn.disabled = true;
-    const provider = new firebase.auth.GoogleAuthProvider();
-    // Always show the account chooser so a shared device can switch students.
-    provider.setCustomParameters({ prompt: 'select_account' });
-
-    // Skip the doomed popup attempt entirely on mobile / in-app browsers.
-    if (prefersRedirectSignIn()) {
-      redirectSignIn(provider, btn);
-      return;
-    }
-
-    auth.signInWithPopup(provider).catch(err => {
-      console.error('[Auth] popup:', err);
-      // Popup was blocked or isn't supported here — fall back to redirect.
-      const popupFailed = [
-        'auth/popup-blocked',
-        'auth/operation-not-supported-in-this-environment',
-        'auth/internal-error',
-        'auth/web-storage-unsupported',
-      ].includes(err.code);
-      if (popupFailed) {
-        redirectSignIn(provider, btn);
-        return;
+      function makePiece(burst) {
+        var angle = Math.random() * Math.PI * 2;
+        var speed = burst ? 3 + Math.random() * 7 : 0;
+        return {
+          x: burst ? W / 2 : Math.random() * W,
+          y: burst ? Math.min(H * 0.38, 380) : -20,
+          vx: burst ? Math.cos(angle) * speed : (Math.random() - .5) * .6,
+          vy: burst ? Math.sin(angle) * speed - 2 : .6 + Math.random() * 1.2,
+          w: 5 + Math.random() * 6,
+          h: 8 + Math.random() * 8,
+          rot: Math.random() * Math.PI * 2,
+          vr: (Math.random() - .5) * .22,
+          color: COLORS[(Math.random() * COLORS.length) | 0],
+          sway: Math.random() * Math.PI * 2,
+          swaySpeed: .02 + Math.random() * .03,
+          opacity: .9
+        };
       }
-      const msg = authErrorMessage(err.code);
-      if (msg) alert(msg);
-      btn.disabled = false;
-    });
-  }
 
-  function signOut() {
-    auth.signOut();
-  }
+      // opening burst
+      for (var i = 0; i < 130; i++) pieces.push(makePiece(true));
 
-  // [FIX: XSS — MEDIUM] Use DOM methods instead of innerHTML so a Google account
-  // with a crafted displayName/email cannot inject script via the user chip.
-  function updateUserChips(user) {
-    const initial = (user.displayName || user.email || '?')[0].toUpperCase();
-    const email   = user.email || '';
+      var last = performance.now();
+      var spawnAcc = 0;
 
-    ['user-chip-items', 'user-chip-checkout', 'user-chip-pending', 'user-chip-receipt'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.innerHTML = '';
+      function frame(now) {
+        var dt = Math.min((now - last) / 16.67, 3);
+        last = now;
+        ctx.clearRect(0, 0, W, H);
 
-      const avatar = document.createElement('div');
-      avatar.className = 'user-avatar';
-      avatar.textContent = initial;
-
-      const emailSpan = document.createElement('span');
-      emailSpan.className = 'user-email';
-      emailSpan.textContent = email;
-
-      const signoutBtn = document.createElement('button');
-      signoutBtn.className = 'signout-btn';
-      signoutBtn.textContent = 'Sign out';
-      signoutBtn.onclick = signOut;
-
-      el.append(avatar, emailSpan, signoutBtn);
-    });
-  }
-
-  // ── Firestore: load paid items ─────────────────────────
-  async function loadPaidItems() {
-    if (!state.user) { state.paidItems = new Set(); state._savedJacketSize = null; return; }
-    try {
-      const snap = await db.collection('payments').doc(state.user.uid).get();
-      if (snap.exists) {
-        state.paidItems = new Set(snap.data().paidItems || []);
-        state._savedJacketSize = snap.data().jacketSize || null;
-      } else {
-        state.paidItems = new Set();
-        state._savedJacketSize = null;
-      }
-    } catch (err) {
-      console.warn('[Firestore] Load failed:', err);
-      state.paidItems = new Set();
-      state._savedJacketSize = null;
-    }
-  }
-
-  const ITEMS = {
-    male: [
-      { id: 'jacket',   name: 'Jacket',           note: 'Standard FYB jacket',       price: 12000 },
-      { id: 'senator',  name: 'Senator Fabric',    note: '',                           price: 16500 },
-      { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
-      { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
-      { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',            price:  8000 },
-    ],
-    female: [
-      { id: 'jacket',   name: 'Jacket',            note: 'Standard FYB jacket',       price: 12000 },
-      { id: 'ankara',   name: 'Ankara Fabric',     note: '',                           price:  6000 },
-      { id: 'sash',     name: 'Sash',              note: '',                           price:  4500 },
-      { id: 'custom',   name: 'Customizations',    note: 'Personalised stitching',     price:  7000 },
-      { id: 'boxing',   name: 'Boxing',            note: 'Items Packaging',            price:  8000 },
-    ],
-  };
-
-  function getItemEffectivePrice(item) {
-    if (item.id === 'senator') return (state.senatorYards || 3) * 5500;
-    if (item.id === 'ankara')  return state.ankaraOption === '3yds' ? 3000 : 6000;
-    return item.price;
-  }
-
-  function getItemDisplayLabel(item) {
-    if (item.id === 'senator') return `Senator Fabric (${state.senatorYards || 3} yds)`;
-    if (item.id === 'ankara')  return `Ankara Fabric (${state.ankaraOption === '3yds' ? 3 : 6} yds)`;
-    if (item.id === 'jacket' && state.jacketSize) return `Jacket (${state.jacketSize})`;
-    return item.name;
-  }
-
-  // ── Fee calculation ────────────────────────────────────
-  // Must stay identical to the calculateFee function in api/initiate-payment.js
-  // Fee is always based on the subtotal (before fee), never the grand total.
-  function calculateFee(subtotal) {
-    if (subtotal < 5000)  return 60;
-    if (subtotal < 10000) return 120;
-    if (subtotal < 15000) return 200;
-    if (subtotal < 25000) return 250;
-    return Math.min(Math.ceil(subtotal / 0.988) - subtotal, 1000);
-  }
-
-  let state = {
-    user:          null,
-    gender:        null,
-    selected:      new Set(),
-    paidItems:     new Set(),
-    name: '', matric: '', email: '', phone: '',
-    senatorYards:  3,
-    ankaraOption:  '6yds',
-    jacketSize:    null,
-    _savedJacketSize: null,
-    pendingAccount:       null,
-    pendingAccountNumber: '',
-    unsubscribe:          null,
-  };
-
-  // ── Utilities ──────────────────────────────────────────
-  const $ = id => document.getElementById(id);
-  const fmt = n => '₦' + n.toLocaleString('en-NG');
-  // [FIX: bug] Guard against state.gender being null to avoid runtime crash.
-  const getTotal = () =>
-    ITEMS[state.gender]
-      ? ITEMS[state.gender].reduce((sum, i) => state.selected.has(i.id) ? sum + getItemEffectivePrice(i) : sum, 0)
-      : 0;
-
-  // [FIX: auth bypass — CRITICAL] goTo now enforces authentication for all post-login screens.
-  // A browser-console call of goTo('screen-checkout') without being signed in
-  // will silently redirect to sign-in instead of granting access.
-  const PROTECTED_SCREENS = new Set(['screen-gender', 'screen-items', 'screen-checkout', 'screen-pending', 'screen-receipt']);
-
-  function goTo(id) {
-    if (PROTECTED_SCREENS.has(id) && !state.user) {
-      id = 'screen-signin';
-    }
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    $(id).classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  // ── Screen 1 → 2 ──────────────────────────────────────
-  // [FIX: auth guard] Explicit check before trusting state.gender assignment.
-  async function selectGender(g) {
-    if (!state.user) { goTo('screen-signin'); return; }
-    state.gender      = g;
-    state.selected    = new Set();
-    state.senatorYards = 3;
-    state.ankaraOption = '6yds';
-    await loadPaidItems();
-    renderItems();
-    goTo('screen-items');
-  }
-
-  // ── Screen 2 : render + interact ──────────────────────
-  function renderItems() {
-    $('items-gender-label').textContent =
-      (state.gender === 'male' ? 'MALE' : 'FEMALE') + ' OUTFIT';
-    const list = $('item-list');
-    list.innerHTML = '';
-
-    ITEMS[state.gender].forEach(item => {
-      const isPaid     = state.paidItems.has(item.id);
-      const isSelected = state.selected.has(item.id);
-      const isDynamic  = item.id === 'senator' || item.id === 'ankara';
-      const el         = document.createElement('div');
-      el.className     = 'item-card' +
-        (isDynamic ? ' item-card--dynamic' : '') +
-        (isPaid ? ' paid' : (isSelected ? ' selected' : ''));
-      if (!isPaid) el.onclick = () => toggleItem(item.id);
-
-      const checkHtml = isPaid
-        ? `<span class="paid-badge">Paid ✓</span>`
-        : `<div class="chk">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          </div>`;
-
-      if (isDynamic) {
-        const effPrice = getItemEffectivePrice(item);
-        let ctrlHtml = '';
-        if (!isPaid) {
-          if (item.id === 'senator') {
-            const yds = state.senatorYards;
-            ctrlHtml = `<div class="item-ctrl senator-ctrl" id="senator-ctrl">
-              <span class="senator-lbl" id="senator-lbl">${yds} yds × ₦5,500 = ${fmt(yds * 5500)}</span>
-              <input type="range" class="senator-slider" id="senator-slider"
-                min="1" max="10" step="1" value="${yds}"
-                aria-label="Senator Fabric quantity in yards"
-                aria-valuemin="1" aria-valuemax="10" aria-valuenow="${yds}">
-            </div>`;
-          } else if (item.id === 'ankara') {
-            const opt = state.ankaraOption;
-            ctrlHtml = `<div class="item-ctrl ankara-ctrl" id="ankara-ctrl">
-              <button class="ankara-opt${opt === '3yds' ? ' active' : ''}" data-opt="3yds" type="button" aria-pressed="${opt === '3yds'}">3 yds — ₦3,000</button>
-              <button class="ankara-opt${opt === '6yds' ? ' active' : ''}" data-opt="6yds" type="button" aria-pressed="${opt === '6yds'}">6 yds — ₦6,000</button>
-            </div>`;
-          }
+        // gentle ongoing drizzle, capped so it never gets heavy
+        spawnAcc += dt;
+        if (spawnAcc > 22 && pieces.length < 90) {
+          spawnAcc = 0;
+          pieces.push(makePiece(false));
         }
-        el.innerHTML = `
-          <div class="item-card-row">
-            ${checkHtml}
-            <div class="item-info"><div class="item-name">${item.name}</div></div>
-            <div class="item-price" id="${item.id}-price-disp">${fmt(effPrice)}</div>
-          </div>
-          ${ctrlHtml}`;
-      } else {
-        el.innerHTML = `
-          ${checkHtml}
-          <div class="item-info">
-            <div class="item-name">${item.name}</div>
-            ${item.note ? `<div class="item-note">${item.note}</div>` : ''}
-          </div>
-          <div class="item-price">${fmt(item.price)}</div>`;
-      }
 
-      list.appendChild(el);
-    });
+        for (var j = pieces.length - 1; j >= 0; j--) {
+          var p = pieces[j];
+          p.vy += .045 * dt;           // gravity
+          p.vx *= Math.pow(.985, dt);  // drag
+          p.vy = Math.min(p.vy, 2.6);  // terminal velocity → floaty fall
+          p.sway += p.swaySpeed * dt;
+          p.x += (p.vx + Math.sin(p.sway) * .5) * dt;
+          p.y += p.vy * dt;
+          p.rot += p.vr * dt;
 
-    attachDynamicControls();
-    syncTotal();
-  }
+          if (p.y > H + 30) { pieces.splice(j, 1); continue; }
 
-  function toggleItem(id) {
-    if (state.selected.has(id)) {
-      state.selected.delete(id);
-      if (id === 'senator') state.senatorYards = 3;
-      if (id === 'ankara')  state.ankaraOption = '6yds';
-      if (id === 'jacket')  state.jacketSize = null;
-    } else {
-      state.selected.add(id);
-    }
-    renderItems();
-  }
-
-  function updateSliderFill(slider) {
-    const pct = ((+slider.value - +slider.min) / (+slider.max - +slider.min) * 100).toFixed(2);
-    slider.style.background =
-      `linear-gradient(to right, #2DB54F ${pct}%, #2E2E2E ${pct}%)`;
-  }
-
-  function attachDynamicControls() {
-    // Prevent ctrl clicks from bubbling to the card (which would toggle selection).
-    // Also manage inert so hidden controls are invisible to keyboard navigation.
-    document.querySelectorAll('.item-ctrl').forEach(ctrl => {
-      ctrl.addEventListener('click', e => e.stopPropagation());
-      const card = ctrl.closest('.item-card');
-      if (card && card.classList.contains('selected')) {
-        ctrl.removeAttribute('inert');
-      } else {
-        ctrl.setAttribute('inert', '');
-      }
-    });
-
-    const slider = document.getElementById('senator-slider');
-    if (slider) {
-      updateSliderFill(slider);
-      slider.addEventListener('input', () => {
-        state.senatorYards = +slider.value;
-        slider.setAttribute('aria-valuenow', slider.value);
-        const lbl = document.getElementById('senator-lbl');
-        if (lbl) lbl.textContent = `${slider.value} yds × ₦5,500 = ${fmt(+slider.value * 5500)}`;
-        const priceDisp = document.getElementById('senator-price-disp');
-        if (priceDisp) priceDisp.textContent = fmt(+slider.value * 5500);
-        updateSliderFill(slider);
-        syncTotal();
-      });
-    }
-
-    document.querySelectorAll('.ankara-opt').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.ankaraOption = btn.dataset.opt;
-        document.querySelectorAll('.ankara-opt').forEach(b => {
-          b.classList.toggle('active', b === btn);
-          b.setAttribute('aria-pressed', String(b === btn));
-        });
-        const priceDisp = document.getElementById('ankara-price-disp');
-        if (priceDisp) priceDisp.textContent = fmt(state.ankaraOption === '3yds' ? 3000 : 6000);
-        syncTotal();
-      });
-    });
-  }
-
-  function syncTotal() {
-    const subtotal = getTotal();
-    $('items-total').textContent = fmt(subtotal);
-    const feeNote = document.getElementById('items-fee-note');
-    if (feeNote) {
-      if (subtotal > 0) {
-        const fee = calculateFee(subtotal);
-        feeNote.textContent = '+ ₦' + fee.toLocaleString('en-NG') + ' processing fee at checkout';
-        feeNote.style.display = 'block';
-      } else {
-        feeNote.style.display = 'none';
-      }
-    }
-    $('btn-proceed').disabled = state.selected.size === 0;
-  }
-
-  // ── Jacket size helpers ────────────────────────────────
-  function updateOrderSummary() {
-    const subtotal = getTotal();
-    const fee      = calculateFee(subtotal);
-    const total    = subtotal + fee;
-    const rows     = ITEMS[state.gender].filter(i => state.selected.has(i.id));
-    $('order-rows').innerHTML =
-      rows.map(i =>
-        `<div class="s-row"><span>${getItemDisplayLabel(i)}</span><span>${fmt(getItemEffectivePrice(i))}</span></div>`
-      ).join('') +
-      `<div class="s-row" style="border-top:1px solid var(--border-2);margin-top:4px;padding-top:10px;">` +
-        `<span style="color:var(--muted);">Subtotal</span><span>${fmt(subtotal)}</span>` +
-      `</div>` +
-      `<div class="s-row">` +
-        `<span style="color:var(--muted);font-size:12px;">Processing Fee</span>` +
-        `<span style="color:var(--muted);">+ ${fmt(fee)}</span>` +
-      `</div>` +
-      `<div class="s-row s-total"><span>Total</span><span>${fmt(total)}</span></div>`;
-  }
-
-  function toggleSizeGuide(e) {
-    e.preventDefault();
-    const wrap = $('size-guide-wrap');
-    const link = $('size-guide-toggle');
-    if (!wrap) return;
-    const isOpen = wrap.style.display !== 'none';
-    wrap.style.display = isOpen ? 'none' : 'block';
-    link.textContent = isOpen ? 'View size guide ▾' : 'Hide size guide ▴';
-  }
-
-  function renderJacketSizeField() {
-    const existing = $('fg-jacket-size');
-    if (existing) existing.remove();
-
-    if (!state.selected.has('jacket')) return;
-
-    const sizes = [
-      { value: 'M',    label: 'M — Chest 40cm, Length 27cm, Sleeve 24cm' },
-      { value: 'L',    label: 'L — Chest 42cm, Length 29cm, Sleeve 25cm' },
-      { value: 'XL',   label: 'XL — Chest 45cm, Length 30cm, Sleeve 26cm' },
-      { value: 'XXL',  label: 'XXL — Chest 49cm, Length 31cm, Sleeve 27cm' },
-      { value: 'XXXL', label: 'XXXL — Chest 50cm, Length 31cm, Sleeve 27.5cm' },
-    ];
-
-    const fg = document.createElement('div');
-    fg.className = 'fg';
-    fg.id = 'fg-jacket-size';
-
-    const label = document.createElement('label');
-    label.className = 'fl';
-    label.textContent = 'Jacket Size';
-
-    const guideLink = document.createElement('a');
-    guideLink.href = '#';
-    guideLink.className = 'size-guide-link';
-    guideLink.id = 'size-guide-toggle';
-    guideLink.textContent = 'View size guide ▾';
-    guideLink.addEventListener('click', toggleSizeGuide);
-
-    const guideWrap = document.createElement('div');
-    guideWrap.id = 'size-guide-wrap';
-    guideWrap.className = 'size-guide-wrap';
-    guideWrap.style.display = 'none';
-    const table = document.createElement('table');
-    table.className = 'size-guide-table';
-    table.innerHTML =
-      '<thead><tr><th>Size</th><th>Chest</th><th>Length</th><th>Sleeve</th></tr></thead>' +
-      '<tbody>' +
-        '<tr><td>M</td><td>40cm</td><td>27cm</td><td>24cm</td></tr>' +
-        '<tr><td>L</td><td>42cm</td><td>29cm</td><td>25cm</td></tr>' +
-        '<tr><td>XL</td><td>45cm</td><td>30cm</td><td>26cm</td></tr>' +
-        '<tr><td>XXL</td><td>49cm</td><td>31cm</td><td>27cm</td></tr>' +
-        '<tr><td>XXXL</td><td>50cm</td><td>31cm</td><td>27.5cm</td></tr>' +
-      '</tbody>';
-    guideWrap.appendChild(table);
-
-    const select = document.createElement('select');
-    select.className = 'fi';
-    select.id = 'f-jacket-size';
-
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    placeholder.textContent = 'Select your jacket size';
-    select.appendChild(placeholder);
-
-    sizes.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.value;
-      opt.textContent = s.label;
-      select.appendChild(opt);
-    });
-
-    // Pre-populate from Firestore if size was already recorded (read-only)
-    if (state._savedJacketSize) {
-      select.value = state._savedJacketSize;
-      select.disabled = true;
-      state.jacketSize = state._savedJacketSize;
-    } else if (state.jacketSize) {
-      select.value = state.jacketSize;
-    }
-
-    select.addEventListener('change', () => {
-      state.jacketSize = select.value || null;
-      const err = $('jacket-size-error');
-      if (err) err.style.display = 'none';
-      updateOrderSummary();
-    });
-
-    const errorEl = document.createElement('span');
-    errorEl.className = 'field-error';
-    errorEl.id = 'jacket-size-error';
-    errorEl.textContent = 'Please select your jacket size to continue.';
-    errorEl.style.display = 'none';
-
-    fg.appendChild(label);
-    fg.appendChild(guideLink);
-    fg.appendChild(guideWrap);
-    fg.appendChild(select);
-    fg.appendChild(errorEl);
-
-    const phoneFg = $('f-phone').closest('.fg');
-    if (phoneFg && phoneFg.parentNode) {
-      phoneFg.parentNode.insertBefore(fg, phoneFg.nextSibling);
-    }
-  }
-
-  // ── Screen 2 → 3 ──────────────────────────────────────
-  // [FIX: auth + state guards — CRITICAL]
-  function proceedToCheckout() {
-    if (!state.user) { goTo('screen-signin'); return; }
-    if (!state.gender || state.selected.size === 0) return;
-
-    if (state.user.displayName && !$('f-name').value) $('f-name').value = state.user.displayName;
-    if (state.user.email && !$('f-email').value)       $('f-email').value = state.user.email;
-
-    updateOrderSummary();
-    renderJacketSizeField();
-    goTo('screen-checkout');
-  }
-
-  // ── Screen 3 : payment ────────────────────────────────
-
-  function getSelectedItemsArray() {
-    if (!state.gender) return [];
-    return ITEMS[state.gender]
-      .filter(i => state.selected.has(i.id))
-      .map(i => ({ id: i.id, name: getItemDisplayLabel(i), price: getItemEffectivePrice(i) }));
-  }
-
-  async function initiatePayment() {
-    if (!state.user) { goTo('screen-signin'); return; }
-
-    const name   = $('f-name').value.trim();
-    const matric = $('f-matric').value.trim();
-    const email  = $('f-email').value.trim();
-    const phone  = $('f-phone').value.trim().replace(/\s/g, '');
-
-    if (!name || name.length < 2 || name.length > 100) {
-      alert('Please enter your full name (2–100 characters).'); return;
-    }
-    if (!matric || matric.length < 5 || matric.length > 30) {
-      alert('Please enter a valid matric number.'); return;
-    }
-    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (!emailRx.test(email)) {
-      alert('Please enter a valid email address.'); return;
-    }
-    const phoneRx = /^(\+?234|0)[789]\d{9}$/;
-    if (!phoneRx.test(phone)) {
-      alert('Please enter a valid Nigerian phone number (e.g. 08012345678).'); return;
-    }
-
-    if (state.selected.has('jacket')) {
-      const jacketSizeEl = $('f-jacket-size');
-      if (jacketSizeEl && !jacketSizeEl.value) {
-        const errorEl = $('jacket-size-error');
-        if (errorEl) {
-          errorEl.style.display = 'block';
-          errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.globalAlpha = p.opacity;
+          ctx.fillStyle = p.color;
+          // scale on a sine gives a 3D tumbling-ribbon feel
+          ctx.fillRect(-p.w / 2, -p.h / 2 * Math.abs(Math.sin(p.sway * 1.4)), p.w, p.h * Math.abs(Math.sin(p.sway * 1.4)) || 1);
+          ctx.restore();
         }
-        return;
+
+        requestAnimationFrame(frame);
       }
-      if (jacketSizeEl) state.jacketSize = jacketSizeEl.value;
-    } else {
-      state.jacketSize = null;
-    }
+      requestAnimationFrame(frame);
+    })();
+  </script>
 
-    state.name = name; state.matric = matric;
-    state.email = email; state.phone = phone;
-
-    const btn = $('btn-pay');
-    btn.disabled = true;
-    btn.textContent = 'Setting up your payment...';
-
-    let idToken;
-    try {
-      idToken = await state.user.getIdToken();
-    } catch {
-      btn.disabled = false;
-      btn.textContent = 'Generate Payment Account →';
-      alert('Authentication error. Please sign in again.');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/initiate-payment', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idToken,
-          name, matric, email, phone,
-          gender:     state.gender,
-          items:      getSelectedItemsArray(),
-          amount:     getTotal(),
-          jacketSize: state.jacketSize,
-          // The server recomputes every price from its own catalog; it needs
-          // the variable-item options to do so (yards for senator, 3/6 yds for ankara).
-          senatorYards: state.selected.has('senator') ? state.senatorYards : null,
-          ankaraOption: state.selected.has('ankara')  ? state.ankaraOption  : null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment initiation failed');
-      state.pendingAccount = data;
-      showPendingScreen(data);
-    } catch (err) {
-      alert(err.message || 'Something went wrong. Please try again.');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Generate Payment Account →';
-    }
-  }
-
-  // ── Screen 4 : pending ────────────────────────────────
-
-  function showPendingScreen(accountDetails) {
-    const displayAmount = accountDetails.totalWithFee ?? accountDetails.amount;
-
-    $('pd-bank-name').textContent      = accountDetails.bankName;
-    $('pd-account-number').textContent = accountDetails.accountNumber;
-    $('pd-amount').textContent         = fmt(displayAmount);
-    state.pendingAccountNumber         = accountDetails.accountNumber;
-    state.pendingAmount                = displayAmount;
-
-    const pdAccountName = document.getElementById('pd-account-name');
-    if (pdAccountName) pdAccountName.textContent = accountDetails.accountName || 'NACOS FYB 2026';
-
-    // Show fee breakdown below the amount on the pending screen
-    const pdFeeBreakdown = document.getElementById('pd-fee-breakdown');
-    if (pdFeeBreakdown && accountDetails.fee) {
-      pdFeeBreakdown.textContent =
-        'Includes ₦' + accountDetails.fee.toLocaleString('en-NG') + ' processing fee';
-      pdFeeBreakdown.style.display = 'block';
-    }
-
-    goTo('screen-pending');
-
-    // Check immediately in case webhook already fired while page was backgrounded
-    db.collection('pendingPayments').doc(state.user.uid).get().then(existingDoc => {
-      if (existingDoc.exists && existingDoc.data().status === 'completed') {
-        showReceiptScreen(existingDoc.data());
-        return;
-      }
-      // Otherwise set up real-time listener
-      const unsubscribe = db.collection('pendingPayments').doc(state.user.uid)
-        .onSnapshot(doc => {
-          if (doc.exists && doc.data().status === 'completed') {
-            unsubscribe();
-            state.unsubscribe = null;
-            showReceiptScreen(doc.data());
-          }
-        }, err => {
-          console.error('[onSnapshot] Listener error:', err);
-        });
-      state.unsubscribe = unsubscribe;
-    }).catch(err => {
-      console.error('[onSnapshot] Initial check error:', err);
-    });
-  }
-
-  function goBackFromPending() {
-    if (state.unsubscribe) {
-      state.unsubscribe();
-      state.unsubscribe = null;
-    }
-    goTo('screen-checkout');
-  }
-
-  async function handleManualPaymentCheck() {
-    const btn = document.getElementById('manualCheckBtn');
-    const msg = document.getElementById('manualCheckMsg');
-
-    if (!state.user) {
-      msg.textContent = 'Please sign in first.';
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'CHECKING...';
-    msg.textContent = '';
-
-    try {
-      const doc = await db.collection('pendingPayments').doc(state.user.uid).get();
-
-      if (doc.exists && doc.data().status === 'completed') {
-        const data = doc.data();
-        showReceiptScreen(data);
-      } else if (doc.exists && doc.data().status === 'pending') {
-        msg.textContent = 'Payment not confirmed yet. Wait a moment and try again.';
-        btn.textContent = "I'VE MADE THE PAYMENT";
-        btn.disabled = false;
-      } else {
-        msg.textContent = 'No pending payment found. Please go back and generate a payment account first.';
-        btn.textContent = "I'VE MADE THE PAYMENT";
-        btn.disabled = false;
-      }
-    } catch (err) {
-      console.error('Manual check error:', err);
-      msg.textContent = 'Error: ' + (err.message || err.code || 'Unknown error');
-      btn.textContent = "I'VE MADE THE PAYMENT";
-      btn.disabled = false;
-    }
-  }
-
-  function copyAccountNumber() {
-    const num = state.pendingAccount?.accountNumber || '';
-    if (!num) return;
-    const btn = $('copy-btn');
-    const reset = () => { btn.textContent = 'Copy'; };
-    navigator.clipboard.writeText(num).then(() => {
-      btn.textContent = 'Copied ✓';
-      setTimeout(reset, 2000);
-    }).catch(() => {
-      const el = document.createElement('textarea');
-      el.value = num;
-      el.style.position = 'fixed';
-      el.style.opacity = '0';
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      btn.textContent = 'Copied ✓';
-      setTimeout(reset, 2000);
-    });
-  }
-
-  function showReceiptScreen(data) {
-    $('r-name').textContent   = data.name   || '';
-    $('r-matric').textContent = data.matric || '';
-    $('r-phone').textContent  = data.phone  || '';
-    $('r-gender').textContent = (data.gender === 'male') ? 'Male' : 'Female';
-    $('r-total').textContent  = fmt(data.displayAmount || 0);
-    $('r-ref').textContent    = data.transactionRef || '—';
-
-    const rFeeRow = document.getElementById('r-fee-row');
-    const rSubtotalRow = document.getElementById('r-subtotal-row');
-    if (rFeeRow && rSubtotalRow) {
-      if (data.fee && data.subtotal) {
-        document.getElementById('r-subtotal-val').textContent = fmt(data.subtotal);
-        document.getElementById('r-fee-val').textContent      = '+ ' + fmt(data.fee);
-        rSubtotalRow.style.display = 'flex';
-        rFeeRow.style.display      = 'flex';
-      } else {
-        rSubtotalRow.style.display = 'none';
-        rFeeRow.style.display      = 'none';
-      }
-    }
-
-    if (data.jacketSize) {
-      $('r-jacket-size').textContent = data.jacketSize;
-      $('r-jacket-size-row').style.display = 'flex';
-    } else {
-      $('r-jacket-size-row').style.display = 'none';
-    }
-
-    // Build the item rows with DOM methods — item names come from Firestore
-    // data, so never feed them through innerHTML.
-    const rItems = $('r-items');
-    rItems.innerHTML = '';
-    (data.items || []).forEach(i => {
-      const row = document.createElement('div');
-      row.className = 'rc-row';
-      const lbl = document.createElement('span');
-      lbl.className = 'lbl';
-      lbl.textContent = i.name || i.id || '';
-      const val = document.createElement('span');
-      val.className = 'val';
-      val.textContent = fmt(i.price || 0);
-      row.append(lbl, val);
-      rItems.appendChild(row);
-    });
-
-    goTo('screen-receipt');
-  }
-
-  // ── Reset ─────────────────────────────────────────────
-  function startOver() {
-    if (state.unsubscribe) { state.unsubscribe(); }
-    const currentUser = state.user;
-    state = {
-      user:             currentUser,
-      gender:           null,
-      selected:         new Set(),
-      paidItems:        new Set(),
-      name: '', matric: '', email: '', phone: '',
-      senatorYards:     3,
-      ankaraOption:     '6yds',
-      jacketSize:       null,
-      _savedJacketSize: null,
-      pendingAccount:       null,
-      pendingAccountNumber: '',
-      unsubscribe:          null,
-    };
-    ['f-name','f-matric','f-email','f-phone'].forEach(id => $(id).value = '');
-    const jacketSizeFg = $('fg-jacket-size');
-    if (jacketSizeFg) jacketSizeFg.remove();
-    goTo('screen-gender');
-  }
-</script>
 </body>
 </html>

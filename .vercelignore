@@ -1,0 +1,4 @@
+# Payments are closed — keep the original portal in the repo but out of
+# the deployment so it can't be reached directly. To reopen payments,
+# restore index-payment-archived.html to index.html and delete this entry.
+index-payment-archived.html
