@@ -2,6 +2,12 @@
 
 NACOS RSU FYB Week outfit payment portal, powered by FossaPay virtual bank accounts and Firebase.
 
+> **Payments are closed.** `index.html` is now a closure landing page. The original
+> payment portal is preserved untouched in `index-payment-archived.html`, which is
+> excluded from deployment via `.vercelignore`. To reopen payments, restore that file
+> to `index.html` and remove the `.vercelignore` entry. The admin dashboard (`/admin`)
+> and all backend APIs are unchanged.
+
 ## Architecture
 
 - **Frontend**: `index.html` — static page served by Vercel
