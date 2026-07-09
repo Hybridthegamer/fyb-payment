@@ -122,7 +122,7 @@ It's safe to re-run — it recomputes the totals from scratch each time rather t
 
 If a deposit reached the FossaPay wallet but the payer's `pendingPayments` record stayed `pending` (webhook delivery failed, or the deposit landed in `unmatchedDeposits`), run the reconciliation script. It cross-references stuck pending records against both `unmatchedDeposits` and the live FossaPay transaction history (anything with no `processedEvents` doc), proposes conservative amount-based matches, and — only with `--apply` — replays the exact writes the webhook would have made (credit `payments/{uid}`, mark the pending record completed, record the event, fix the ledger):
 
-```
+```bash
 # Dry run — prints stuck pendings, unclaimed deposits, and proposed matches
 FIREBASE_PROJECT_ID=... FIREBASE_CLIENT_EMAIL=... FIREBASE_PRIVATE_KEY=... \
 FOSSAPAY_SECRET_KEY=... node scripts/reconcile-pending.js

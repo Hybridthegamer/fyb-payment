@@ -80,7 +80,14 @@ for (let i = 2; i < process.argv.length; i++) {
   }
 }
 
-// Same tolerance the webhook uses: exact, then ±1 for top-tier fee rounding.
+/**
+ * Whether a deposit amount fits a pending record, using the same tolerance
+ * the webhook uses: exact match, then ±1 for top-tier fee rounding, against
+ * both stored match keys (with subtotal/displayAmount fallbacks for legacy docs).
+ * @param {object} pending  pendingPayments doc data
+ * @param {number} amount   deposit amount reported by FossaPay
+ * @returns {boolean}
+ */
 function amountMatchesPending(pending, amount) {
   const rounded = Math.round(amount);
   const keys = [
@@ -90,8 +97,13 @@ function amountMatchesPending(pending, amount) {
   return keys.some(k => Math.abs(k - rounded) <= 1);
 }
 
-// FossaPay response shapes have varied; dig the transaction array out of the
-// common envelopes and normalize the fields we need.
+/**
+ * Digs the transaction array out of a FossaPay API response and normalizes
+ * the fields this script needs. FossaPay response shapes have varied, so
+ * every envelope observed in production logs is tried in turn.
+ * @param {*} payload  parsed JSON body from the transactions endpoint
+ * @returns {Array<{transactionId: string|null, amount: number, type: string, status: string, date: *, raw: object}>}
+ */
 function extractFossaTransactions(payload) {
   const arr =
     (Array.isArray(payload) && payload) ||
@@ -110,20 +122,36 @@ function extractFossaTransactions(payload) {
   }));
 }
 
+/**
+ * Whether a normalized FossaPay transaction looks like a settled inbound
+ * credit — excludes obvious withdrawals/transfers-out and failed rows.
+ * @param {{type: string, status: string, amount: number}} t
+ * @returns {boolean}
+ */
 function isCreditDeposit(t) {
-  // Keep anything that looks like an inbound credit; exclude obvious
-  // withdrawals/transfers-out and failed rows.
   if (/withdraw|transfer_out|debit|payout/.test(t.type)) return false;
   if (t.status && /fail|revers|cancel|pending/.test(t.status)) return false;
   return Number.isFinite(t.amount) && t.amount > 0;
 }
 
+/**
+ * Formats a Firestore Timestamp, ISO string, or missing value for report output.
+ * @param {*} v
+ * @returns {string}
+ */
 function fmtDate(v) {
   if (!v) return '—';
   if (v.toDate) return v.toDate().toISOString();
   return String(v);
 }
 
+/**
+ * Fetches the FossaPay wallet transaction history and returns candidate
+ * deposits the webhook never processed (no processedEvents doc). Returns an
+ * empty list, with a warning, when FOSSAPAY_SECRET_KEY isn't configured.
+ * @param {Set<string>} processedIds  transaction ids already in processedEvents
+ * @returns {Promise<Array<{source: 'fossapay', transactionId: string, amount: number, date: *, eventId: null, reference: string|null}>>}
+ */
 async function loadFossaDeposits(processedIds) {
   if (!process.env.FOSSAPAY_SECRET_KEY) {
     console.warn('\n⚠ FOSSAPAY_SECRET_KEY not set — skipping the FossaPay history check.');
@@ -134,12 +162,20 @@ async function loadFossaDeposits(processedIds) {
   const configSnap = await db.collection('config').doc('fossapay').get();
   if (!configSnap.exists) throw new Error('config/fossapay not found');
   const { walletId } = configSnap.data();
+  if (typeof walletId !== 'string' || walletId.length === 0) {
+    throw new Error('config/fossapay has no walletId — cannot query FossaPay history');
+  }
 
   const res = await fetch(
     `https://api-production.fossapay.com/api/v1/wallets/fiat/${walletId}/transactions`,
     { headers: { 'x-api-key': process.env.FOSSAPAY_SECRET_KEY } }
   );
   const rawText = await res.text();
+  // Fail closed: a non-2xx JSON error body would otherwise parse fine, yield
+  // zero transactions, and silently hide every missed deposit.
+  if (!res.ok) {
+    throw new Error(`FossaPay transactions endpoint HTTP ${res.status}: ${rawText.slice(0, 300)}`);
+  }
   let payload;
   try { payload = JSON.parse(rawText); } catch {
     throw new Error(`FossaPay transactions endpoint returned non-JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
@@ -164,6 +200,17 @@ async function loadFossaDeposits(processedIds) {
     }));
 }
 
+/**
+ * Applies one deposit↔pending match inside a single Firestore transaction,
+ * replaying the exact writes the webhook would have made: credit
+ * payments/{uid}, complete the pending doc, record processedEvents, and move
+ * the amount into summary totalDeposits (out of unmatchedDeposits when that's
+ * where it was counted). Re-validates every precondition inside the
+ * transaction so a concurrent webhook delivery or double-run can't double-credit.
+ * @param {{source: 'unmatched'|'fossapay', transactionId: string, amount: number, eventId: *}} deposit
+ * @param {FirebaseFirestore.DocumentReference} pendingSnapRef  ref of the pendingPayments doc to complete
+ * @returns {Promise<void>}
+ */
 async function applyMatch(deposit, pendingSnapRef) {
   const summaryRef         = db.collection('summary').doc('fossapay');
   const processedEventsRef = db.collection('processedEvents').doc(deposit.transactionId);
@@ -207,15 +254,15 @@ async function applyMatch(deposit, pendingSnapRef) {
     };
 
     const paymentUpdate = {
-      name:         pendingDoc.name   ?? null,
-      matric:       pendingDoc.matric ?? null,
-      email:        pendingDoc.email  ?? null,
-      phone:        pendingDoc.phone  ?? null,
-      gender:       pendingDoc.gender ?? null,
       totalPaid:    admin.firestore.FieldValue.increment(amount),
       transactions: admin.firestore.FieldValue.arrayUnion(txn),
       paidAt:       admin.firestore.FieldValue.serverTimestamp(),
     };
+    // Merge write: only copy profile fields that are actually present, so a
+    // legacy pending doc with gaps can't null out data already on payments/{uid}.
+    for (const field of ['name', 'matric', 'email', 'phone', 'gender']) {
+      if (pendingDoc[field] != null) paymentUpdate[field] = pendingDoc[field];
+    }
     if (paidItemIds.length > 0) {
       paymentUpdate.paidItems = admin.firestore.FieldValue.arrayUnion(...paidItemIds);
     }
@@ -227,6 +274,9 @@ async function applyMatch(deposit, pendingSnapRef) {
       eventId:      deposit.eventId ?? null,
       matched:      true,
       uid,
+      // processedAt keeps these records shaped like webhook-written ones;
+      // reconciledAt marks that this one came from the script.
+      processedAt:  admin.firestore.FieldValue.serverTimestamp(),
       reconciledAt: admin.firestore.FieldValue.serverTimestamp(),
       reconciledBy: 'reconcile-pending-script',
       reconciledFrom: deposit.source, // 'unmatched' | 'fossapay'
@@ -256,6 +306,12 @@ async function applyMatch(deposit, pendingSnapRef) {
   });
 }
 
+/**
+ * Entry point: loads stuck pendings and candidate deposits, computes
+ * manual + auto matches, prints the reconciliation report, and (only with
+ * --apply) executes the proposed matches.
+ * @returns {Promise<void>}
+ */
 async function main() {
   console.log(APPLY ? '=== RECONCILE — APPLY MODE ===' : '=== RECONCILE — DRY RUN (no writes) ===');
 
@@ -276,16 +332,23 @@ async function main() {
 
   // 3. Candidate deposits: unmatchedDeposits + never-processed FossaPay history
   const unmatchedSnap = await db.collection('unmatchedDeposits').get();
-  const unmatched = unmatchedSnap.docs.map(d => {
+  const unmatched = unmatchedSnap.docs.flatMap(d => {
     const u = d.data();
-    return {
+    const amount = Number(u.amount);
+    // A malformed amount must not enter the matching pool as ₦0 — surface it
+    // for manual inspection instead.
+    if (!Number.isFinite(amount) || amount <= 0) {
+      console.warn(`  ⚠ skipping unmatchedDeposits/${d.id}: invalid amount=${u.amount}`);
+      return [];
+    }
+    return [{
       source:        'unmatched',
       transactionId: d.id,
-      amount:        Number(u.amount) || 0,
+      amount,
       date:          u.receivedAt ?? null,
       eventId:       u.eventId ?? null,
       reference:     u.reference ?? null,
-    };
+    }];
   });
   const missed = await loadFossaDeposits(processedIds);
 
