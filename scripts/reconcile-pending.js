@@ -166,26 +166,35 @@ async function loadFossaDeposits(processedIds) {
     throw new Error('config/fossapay has no walletId — cannot query FossaPay history');
   }
 
-  const res = await fetch(
-    `https://api-production.fossapay.com/api/v1/wallets/fiat/${walletId}/transactions`,
-    { headers: { 'x-api-key': process.env.FOSSAPAY_SECRET_KEY } }
-  );
-  const rawText = await res.text();
-  // Fail closed: a non-2xx JSON error body would otherwise parse fine, yield
-  // zero transactions, and silently hide every missed deposit.
-  if (!res.ok) {
-    throw new Error(`FossaPay transactions endpoint HTTP ${res.status}: ${rawText.slice(0, 300)}`);
+  // The endpoint pages (default page size 10, newest first) — walk every page
+  // or deposits older than the last few days silently drop out of the check.
+  const PAGE_SIZE = 100;
+  const all = [];
+  for (let page = 1; ; page++) {
+    const res = await fetch(
+      `https://api-production.fossapay.com/api/v1/wallets/fiat/${walletId}/transactions?page=${page}&limit=${PAGE_SIZE}`,
+      { headers: { 'x-api-key': process.env.FOSSAPAY_SECRET_KEY } }
+    );
+    const rawText = await res.text();
+    // Fail closed: a non-2xx JSON error body would otherwise parse fine, yield
+    // zero transactions, and silently hide every missed deposit.
+    if (!res.ok) {
+      throw new Error(`FossaPay transactions endpoint HTTP ${res.status}: ${rawText.slice(0, 300)}`);
+    }
+    let payload;
+    try { payload = JSON.parse(rawText); } catch {
+      throw new Error(`FossaPay transactions endpoint returned non-JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
+    }
+    const batch = extractFossaTransactions(payload);
+    if (batch.length === 0 && page === 1) {
+      console.warn('  (If the wallet is not empty, the response shape may be new — raw first 300 chars:)');
+      console.warn(' ', rawText.slice(0, 300));
+    }
+    all.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+    if (page >= 50) throw new Error('FossaPay history exceeds 50 pages — refusing to loop forever');
   }
-  let payload;
-  try { payload = JSON.parse(rawText); } catch {
-    throw new Error(`FossaPay transactions endpoint returned non-JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
-  }
-  const all = extractFossaTransactions(payload);
   console.log(`FossaPay history: ${all.length} transactions fetched.`);
-  if (all.length === 0) {
-    console.warn('  (If the wallet is not empty, the response shape may be new — raw first 300 chars:)');
-    console.warn(' ', rawText.slice(0, 300));
-  }
 
   return all
     .filter(isCreditDeposit)
