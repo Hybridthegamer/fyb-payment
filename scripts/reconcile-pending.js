@@ -4,7 +4,7 @@
 // the money is in the wallet, but payments/{uid} was never credited and the
 // ledger understates (or mis-buckets) the balance.
 //
-// Two sources of un-reconciled money are considered:
+// Three sources of un-reconciled money are considered:
 //
 //   1. unmatchedDeposits — the webhook received the event but found no
 //      pending record to attribute it to (e.g. the record was outside the
@@ -17,6 +17,13 @@
 //      handler errored before the fix, so the deposit is missing from the
 //      ledger entirely. This is the actual balance shortage. Requires
 //      FOSSAPAY_SECRET_KEY; skipped (with a warning) if it isn't set.
+//
+//   3. Stale processed events — deposits whose processedEvents doc exists
+//      but in the OLD webhook format ({eventId, processedAt} only, no uid)
+//      AND whose transaction id is credited on no payments doc: the old
+//      webhook saw the deposit, matched nobody, and recorded nothing else.
+//      Attribution truth lives in payments/*.transactions[].ref, so this
+//      needs a payments scan; doc existence alone says nothing.
 //
 // For every deposit↔pending match it applies the SAME writes the webhook
 // would have made, inside one Firestore transaction per match:
@@ -146,13 +153,13 @@ function fmtDate(v) {
 }
 
 /**
- * Fetches the FossaPay wallet transaction history and returns candidate
- * deposits the webhook never processed (no processedEvents doc). Returns an
- * empty list, with a warning, when FOSSAPAY_SECRET_KEY isn't configured.
- * @param {Set<string>} processedIds  transaction ids already in processedEvents
- * @returns {Promise<Array<{source: 'fossapay', transactionId: string, amount: number, date: *, eventId: null, reference: string|null}>>}
+ * Fetches the FossaPay wallet transaction history and returns every settled
+ * inbound credit, normalized. The caller classifies them against
+ * processedEvents and payments refs (source 'fossapay' vs 'stale-processed').
+ * Returns an empty list, with a warning, when FOSSAPAY_SECRET_KEY isn't configured.
+ * @returns {Promise<Array<{transactionId: string, amount: number, date: *, reference: string|null}>>}
  */
-async function loadFossaDeposits(processedIds) {
+async function loadFossaDeposits() {
   if (!process.env.FOSSAPAY_SECRET_KEY) {
     console.warn('\n⚠ FOSSAPAY_SECRET_KEY not set — skipping the FossaPay history check.');
     console.warn('  Only unmatchedDeposits will be reconciled; deposits whose webhook');
@@ -198,13 +205,11 @@ async function loadFossaDeposits(processedIds) {
 
   return all
     .filter(isCreditDeposit)
-    .filter(t => t.transactionId && !processedIds.has(t.transactionId))
+    .filter(t => t.transactionId)
     .map(t => ({
-      source:        'fossapay',
       transactionId: t.transactionId,
       amount:        t.amount,
       date:          t.date,
-      eventId:       null,
       reference:     typeof t.raw.reference === 'string' ? t.raw.reference : null,
     }));
 }
@@ -216,7 +221,7 @@ async function loadFossaDeposits(processedIds) {
  * the amount into summary totalDeposits (out of unmatchedDeposits when that's
  * where it was counted). Re-validates every precondition inside the
  * transaction so a concurrent webhook delivery or double-run can't double-credit.
- * @param {{source: 'unmatched'|'fossapay', transactionId: string, amount: number, eventId: *}} deposit
+ * @param {{source: 'unmatched'|'fossapay'|'stale-processed', transactionId: string, amount: number, eventId: *}} deposit
  * @param {FirebaseFirestore.DocumentReference} pendingSnapRef  ref of the pendingPayments doc to complete
  * @returns {Promise<void>}
  */
@@ -236,6 +241,16 @@ async function applyMatch(deposit, pendingSnapRef) {
     const processedSnap = await t.get(processedEventsRef);
     if (deposit.source === 'fossapay' && processedSnap.exists) {
       throw new Error(`processedEvents/${deposit.transactionId} already exists — webhook got there first`);
+    }
+    if (deposit.source === 'stale-processed') {
+      // The old-format event doc must still be unattributed; a uid means the
+      // webhook (or another reconcile run) claimed this deposit since the scan.
+      if (!processedSnap.exists) {
+        throw new Error(`processedEvents/${deposit.transactionId} disappeared — expected a stale event doc`);
+      }
+      if (processedSnap.data().uid != null) {
+        throw new Error(`processedEvents/${deposit.transactionId} now attributed to ${processedSnap.data().uid} — someone claimed it first`);
+      }
     }
     if (deposit.source === 'unmatched') {
       const unmatchedSnap = await t.get(unmatchedRef);
@@ -288,7 +303,7 @@ async function applyMatch(deposit, pendingSnapRef) {
       processedAt:  admin.firestore.FieldValue.serverTimestamp(),
       reconciledAt: admin.firestore.FieldValue.serverTimestamp(),
       reconciledBy: 'reconcile-pending-script',
-      reconciledFrom: deposit.source, // 'unmatched' | 'fossapay'
+      reconciledFrom: deposit.source, // 'unmatched' | 'fossapay' | 'stale-processed'
     }, { merge: true });
 
     t.set(db.collection('payments').doc(uid), paymentUpdate, { merge: true });
@@ -324,10 +339,21 @@ async function applyMatch(deposit, pendingSnapRef) {
 async function main() {
   console.log(APPLY ? '=== RECONCILE — APPLY MODE ===' : '=== RECONCILE — DRY RUN (no writes) ===');
 
-  // 1. Everything the webhook has ever processed (matched or not)
+  // 1. Everything the webhook has ever processed (matched or not). Old-format
+  // docs ({eventId, processedAt} only) don't say WHO was credited — that truth
+  // lives in payments/*.transactions[].ref — so collect both.
   const processedSnap = await db.collection('processedEvents').get();
-  const processedIds = new Set(processedSnap.docs.map(d => d.id));
-  console.log(`processedEvents: ${processedIds.size} transaction ids recorded.`);
+  const processedById = new Map(processedSnap.docs.map(d => [d.id, d.data()]));
+  console.log(`processedEvents: ${processedById.size} transaction ids recorded.`);
+
+  const paymentsSnap = await db.collection('payments').get();
+  const creditedRefs = new Set();
+  for (const doc of paymentsSnap.docs) {
+    for (const txn of (Array.isArray(doc.data().transactions) ? doc.data().transactions : [])) {
+      if (txn && typeof txn.ref === 'string') creditedRefs.add(txn.ref);
+    }
+  }
+  console.log(`payments: ${creditedRefs.size} transaction refs credited across ${paymentsSnap.size} students.`);
 
   // 2. Stuck pending records
   const pendingSnap = await db.collection('pendingPayments')
@@ -359,10 +385,21 @@ async function main() {
       reference:     u.reference ?? null,
     }];
   });
-  const missed = await loadFossaDeposits(processedIds);
+  const history = await loadFossaDeposits();
+  const missed = [];  // no processedEvents doc at all — webhook never ran
+  const stale  = [];  // old-format event doc, but credited to no student
+  for (const t of history) {
+    const ev = processedById.get(t.transactionId);
+    if (!ev) {
+      missed.push({ ...t, source: 'fossapay', eventId: null });
+    } else if (ev.uid == null && !creditedRefs.has(t.transactionId)) {
+      stale.push({ ...t, source: 'stale-processed', eventId: ev.eventId ?? null });
+    }
+    // else: attributed via uid or a payments txn ref — already reconciled.
+  }
 
-  const deposits = [...unmatched, ...missed];
-  console.log(`\nCandidate deposits: ${unmatched.length} unmatched (webhook saw them), ${missed.length} missing from processedEvents (webhook never processed them).`);
+  const deposits = [...unmatched, ...missed, ...stale];
+  console.log(`\nCandidate deposits: ${unmatched.length} unmatched (webhook saw them), ${missed.length} missing from processedEvents (webhook never processed them), ${stale.length} stale-processed (webhook saw them, credited nobody).`);
   for (const d of deposits) {
     console.log(`  - [${d.source}] ${d.transactionId}  ₦${d.amount}  ${fmtDate(d.date)}${d.reference ? '  ref=' + d.reference : ''}`);
   }
